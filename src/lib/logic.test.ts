@@ -37,6 +37,29 @@ New  Active`
   it('skips duplicates and short noise', () => expect(parseStories('1234 ok\n1234 Again title\n555 ab')).toEqual([{ number: '1234', title: 'Again title' }]))
   it('builds links', () => expect(buildAdoUrl('https://x/_workitems/edit/{id}', '42')).toBe('https://x/_workitems/edit/42'))
   it('builds no link from a pattern without {id}', () => expect(buildAdoUrl('https://x/_workitems/edit/48213', '42')).toBe(''))
+  it('reads ADO backlog rows: ignores the row number, uses the work item ID', () => {
+    const ocr = `3         647760  RHRP Portal API | Move to Windows Server 2025 (UAT)
+
+10        655599  Examinee Portal | Show Up to Three Phone Numbers for Text and Voice Opt-In/Opt-Out
+37       650397 Examinee Portal | Fix 508 Findings in Notification Preferences (Opt-In/Opt-Out), Phase 2 Development
+62       648329  Bug ExamTrak | Need Help Signing in? link does not open the Need Help page
+63        648330  Bug: ExamTrak | Need Help link on the Exam Track login page does nothing
+72        655805  Provider Portal: Add 2026 tax forms from Avalara
+84         655906  © Examinee Portal | Hide appointments in error (DBQ #300) from My Appointments
+85  6559O7  B NGV2Services | Add unit tests`
+    expect(parseStories(ocr)).toEqual([
+      { number: '647760', title: 'RHRP Portal API | Move to Windows Server 2025 (UAT)' },
+      { number: '655599', title: 'Examinee Portal | Show Up to Three Phone Numbers for Text and Voice Opt-In/Opt-Out' },
+      { number: '650397', title: 'Examinee Portal | Fix 508 Findings in Notification Preferences (Opt-In/Opt-Out), Phase 2 Development' },
+      { number: '648329', title: 'Bug ExamTrak | Need Help Signing in? link does not open the Need Help page' },
+      { number: '648330', title: 'Bug: ExamTrak | Need Help link on the Exam Track login page does nothing' },
+      { number: '655805', title: 'Provider Portal: Add 2026 tax forms from Avalara' },
+      { number: '655906', title: 'Examinee Portal | Hide appointments in error (DBQ #300) from My Appointments' },
+      { number: '655907', title: 'NGV2Services | Add unit tests' },
+    ])
+  })
+  it('keeps a number that starts the title', () =>
+    expect(parseStories('48213 2026 tax forms')).toEqual([{ number: '48213', title: '2026 tax forms' }]))
   it('keeps a " | " inside a title', () =>
     expect(parseStories('344554 Examinee Portal | Hide past appointments')).toEqual([{ number: '344554', title: 'Examinee Portal | Hide past appointments' }]))
   it('captures a link written on the same line', () =>

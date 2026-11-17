@@ -33,7 +33,8 @@ export function LoadStories({ api, open, onClose, defaultTo = 'backlog' }: { api
   const [raw, setRaw] = useState('')
   const [bulkOpen, setBulkOpen] = useState(false)
   const [progress, setProgress] = useState<number | null>(null)
-  const [preview, setPreview] = useState<string | null>(null)
+  const [shots, setShots] = useState<{ thumb: string; found: number | null }[]>([])
+  const setPreview = (_: null) => setShots([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savedNote, setSavedNote] = useState<string | null>(null)
@@ -61,12 +62,24 @@ export function LoadStories({ api, open, onClose, defaultTo = 'backlog' }: { api
     return [...merged, blank()]
   })
 
-  const handleImage = async (file: Blob) => {
-    setPreview(URL.createObjectURL(file)); setProgress(0); setError(null)
-    try { const text = await readImage(file, setProgress); setRaw(text); addParsed(parseStories(text)) }
-    catch (e: any) { setError('Could not read the screenshot: ' + (e?.message ?? e)) }
+  /** Read one or more screenshots in turn; each adds its stories to the table (no duplicate IDs). */
+  const handleImages = async (files: Blob[]) => {
+    setError(null)
+    for (const file of files.filter((f) => f.type.startsWith('image/'))) {
+      const thumb = URL.createObjectURL(file)
+      setShots((s) => [...s, { thumb, found: null }]); setProgress(0)
+      try {
+        const found = parseStories(await readImage(file, setProgress))
+        addParsed(found)
+        setShots((s) => s.map((x) => (x.thumb === thumb ? { ...x, found: found.length } : x)))
+      } catch (e: any) {
+        setShots((s) => s.filter((x) => x.thumb !== thumb))
+        setError('Could not read a screenshot: ' + (e?.message ?? e))
+      }
+    }
     setProgress(null)
   }
+  const handleImage = (file: Blob) => handleImages([file])
   useEffect(() => {
     if (!open) return
     const onPaste = (e: ClipboardEvent) => {
@@ -91,7 +104,7 @@ export function LoadStories({ api, open, onClose, defaultTo = 'backlog' }: { api
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !saving && onClose()}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-6xl">
         <DialogHeader>
           <DialogTitle>Add stories</DialogTitle>
           <DialogDescription>Type each story's number and title. Paste one story's ADO link and the rest fill in automatically.</DialogDescription>
@@ -111,14 +124,14 @@ export function LoadStories({ api, open, onClose, defaultTo = 'backlog' }: { api
         </div>
 
         <div className="rounded-md border">
-          <div className="grid grid-cols-[7rem_1fr_minmax(0,18rem)_2.25rem] gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
+          <div className="grid grid-cols-[6.5rem_1fr_minmax(0,15rem)_2.25rem] gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
             <span>Story #</span><span>Title</span><span>ADO link</span><span />
           </div>
           <div className="max-h-[42vh] overflow-y-auto p-2 grid gap-1.5">
             {rows.map((r, i) => (
-              <div key={i} className="grid grid-cols-[7rem_1fr_minmax(0,18rem)_2.25rem] items-center gap-2">
+              <div key={i} className="grid grid-cols-[6.5rem_1fr_minmax(0,15rem)_2.25rem] items-center gap-2">
                 <Input className="h-8 font-mono" placeholder="e.g. 48213" inputMode="numeric" value={r.number} onChange={(e) => setRow(i, { number: e.target.value.replace(/\D/g, '') })} aria-label={`Story number, row ${i + 1}`} />
-                <Input className="h-8" placeholder={i === 0 ? 'Story title' : ''} value={r.title} onChange={(e) => setRow(i, { title: e.target.value })} aria-label={`Title, row ${i + 1}`} />
+                <Input className="h-8" title={r.title} placeholder={i === 0 ? "Story title" : ""} value={r.title} onChange={(e) => setRow(i, { title: e.target.value })} aria-label={`Title, row ${i + 1}`} />
                 <Input className="h-8 font-mono text-xs" placeholder={r.number && pattern ? buildAdoUrl(pattern, r.number) : 'Paste link (optional)'} value={r.url} onChange={(e) => setRow(i, { url: e.target.value })} aria-label={`ADO link, row ${i + 1}`} />
                 <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Remove row" onClick={() => setRows((x) => (x.length > 1 ? x.filter((_, j) => j !== i) : [blank()]))}><Trash2 /></Button>
               </div>
@@ -136,12 +149,30 @@ export function LoadStories({ api, open, onClose, defaultTo = 'backlog' }: { api
           </button>
           {bulkOpen && (
             <div className="grid grid-cols-2 gap-4 border-t p-3">
-              <label className="flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground transition-colors hover:bg-secondary/50"
-                onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleImage(f) }}>
-                <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleImage(e.target.files[0])} />
-                {preview ? <img src={preview} className="max-h-32 rounded-md" /> : <><ImageUp className="h-7 w-7" /><span>Drop a screenshot, click to choose, or press <kbd className="rounded border bg-muted px-1 font-mono text-xs">Ctrl V</kbd><br /><span className="text-xs">Read on this computer, never uploaded.</span></span></>}
-                {progress != null && <span className="flex items-center gap-2 text-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Reading… {Math.round(progress * 100)}%</span>}
-              </label>
+              <div className="grid gap-2">
+                <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground transition-colors hover:bg-secondary/50"
+                  onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); handleImages([...e.dataTransfer.files]) }}>
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { handleImages([...(e.target.files ?? [])]); e.target.value = '' }} />
+                  <ImageUp className="h-7 w-7" />
+                  <span>Drop ADO screenshots here, click to choose (several at once is fine), or press <kbd className="rounded border bg-muted px-1 font-mono text-xs">Ctrl V</kbd><br /><span className="text-xs">Read on this computer, never uploaded.</span></span>
+                  {progress != null && <span className="flex items-center gap-2 text-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Reading… {Math.round(progress * 100)}%</span>}
+                </label>
+                {shots.length > 0 && (
+                  <div className="grid gap-1.5">
+                    <div className="text-xs text-muted-foreground">
+                      Read {shots.reduce((a, s) => a + (s.found ?? 0), 0)} {shots.reduce((a, s) => a + (s.found ?? 0), 0) === 1 ? 'story' : 'stories'} from {shots.length} {shots.length === 1 ? 'screenshot' : 'screenshots'}. Check the table above, then add ADO links if you like.
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {shots.map((s) => (
+                        <div key={s.thumb} className="relative">
+                          <img src={s.thumb} className="h-14 w-24 rounded border object-cover object-left-top" />
+                          <span className="absolute bottom-0.5 right-0.5 rounded bg-background/90 px-1 text-[10px] font-medium">{s.found == null ? '…' : `${s.found} found`}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
               <div className="grid gap-2">
                 <Textarea className="h-28 font-mono text-xs" placeholder={'One story per line:\n48213 Export invoices to CSV\n48214 Add vendor search'} value={raw} onChange={(e) => setRaw(e.target.value)} aria-label="Paste stories" />
                 <Button variant="secondary" size="sm" disabled={!raw.trim()} onClick={() => { addParsed(parseStories(raw)); setRaw('') }}>Put these in the table</Button>
