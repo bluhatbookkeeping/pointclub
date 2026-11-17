@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { PGlite } from '@electric-sql/pglite'
-import { handle, type Query } from './_core'
+import { handle, type Query } from '../api/_core'
 
 let db: Query
 beforeEach(async () => {
