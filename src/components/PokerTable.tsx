@@ -26,7 +26,7 @@ function railPoint(t: number, off: number) {
   return { x: 50, y: 100 }
 }
 
-export interface SeatInfo { member: Member; vote: CardValue | null; isHost: boolean; isMe: boolean; spotlight: boolean; mood: 'idle' | 'thinking' | 'cheer' | 'shock'; menu?: React.ReactNode }
+export interface SeatInfo { member: Member; vote: CardValue | null; isHost: boolean; isMe: boolean; spotlight: boolean; mood: 'idle' | 'thinking' | 'cheer' | 'shock'; menu?: React.ReactNode; dealer?: boolean }
 
 export function PokerTable({ seats, faceUp, votesIn, center }: { seats: SeatInfo[]; faceUp: boolean; votesIn: number; center?: React.ReactNode }) {
   // Put "me" at the bottom centre, everyone else evenly around the rail.
@@ -52,6 +52,7 @@ export function PokerTable({ seats, faceUp, votesIn, center }: { seats: SeatInfo
       {/* Cards on the felt */}
       {ordered.map((s, i) => {
         const p = railPoint(i / n, -112)
+        if (s.dealer) return null // the dealer doesn't play a card
         return (
           <div key={'c' + s.member.id} className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: `${p.x}%`, top: `${p.y}%` }}>
             <SeatCard value={s.vote} faceUp={faceUp} delay={i * 0.08} color={castById(s.member.character).color} />
@@ -76,6 +77,7 @@ export function PokerTable({ seats, faceUp, votesIn, center }: { seats: SeatInfo
             {s.menu ? <Popover><PopoverTrigger asChild>{seat}</PopoverTrigger><PopoverContent className="w-auto p-1.5 flex items-center gap-1">{s.menu}</PopoverContent></Popover> : seat}
             <div className="rounded-md border bg-background/95 px-2 py-0.5 text-center shadow-sm leading-tight">
               <div className="text-xs font-semibold whitespace-nowrap">{s.member.name}{s.isMe ? ' (you)' : ''}</div>
+              {s.dealer && <div className="text-[10px] font-semibold uppercase tracking-wider text-[#a8862a]">Dealer</div>}
             </div>
             {s.spotlight && <Badge variant="destructive" className="uppercase tracking-wider text-[10px]">Explain your vote</Badge>}
           </div>

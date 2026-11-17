@@ -33,8 +33,11 @@ function IconBtn({ tip, children, ...p }: React.ComponentProps<typeof Button> & 
 }
 
 export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi; openVault: () => void; openPlanner: () => void; onLobby: () => void }) {
-  const { room, members, me, current, lineup, backlog, upNext, roundVotes, myVote, isHost, result, actions, activeSprint, sprints, mode } = api
+  const { room, members, me, current, lineup, backlog, upNext, isDealer, roundVotes, myVote, isHost, result, actions, activeSprint, sprints, mode } = api
   const here = members.filter((m) => m.status === 'here').sort((a, b) => a.name.localeCompare(b.name))
+  // Who votes: everyone here except the dealer (the host), unless the host turned on "Vote too".
+  const voters = here.filter((m) => room?.hostVotes || m.id !== room?.hostId)
+  const allIn = voters.length > 0 && voters.every((m) => roundVotes.some((v) => v.memberId === m.id))
   const away = members.filter((m) => m.status === 'away')
   const [phase, setPhase] = useState<Phase>(room?.revealed ? 'shown' : 'voting')
   const [verdict, setVerdict] = useState<Outcome | null>(null)
@@ -284,7 +287,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
           <PokerTable faceUp={shown} votesIn={roundVotes.length} center={shown && result ? <Results result={result} /> : undefined} seats={here.map((m) => {
             const v = voteOf(m.id)
             return {
-              member: m, vote: v, isMe: m.id === me?.id, isHost: room?.hostId === m.id,
+              member: m, vote: v, isMe: m.id === me?.id, isHost: room?.hostId === m.id, dealer: room?.hostId === m.id && !room?.hostVotes,
               spotlight: !!(spotlight && v && spotlight.has(v)),
               mood: shown && verdict === 'blockbuster' ? 'cheer' : shown && verdict === 'plottwist' ? 'shock' : !v && current && !shown ? 'thinking' : 'idle',
               menu: m.id === me?.id ? undefined : <>
@@ -316,7 +319,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
             <div className="flex flex-col items-center gap-3">
               {isHost ? (
                 <div className="flex flex-wrap gap-2 justify-center items-center">
-                  {!room?.revealed && <Button size="lg" disabled={roundVotes.length === 0} onClick={actions.reveal}><Eye /> Show the cards <Badge variant="secondary" className="ml-1">{roundVotes.length}/{here.length}</Badge></Button>}
+                  {!room?.revealed && <Button size="lg" disabled={roundVotes.length === 0} onClick={actions.reveal} className={cn(allIn && 'animate-pulse ring-4 ring-primary/30')} data-testid="show-hand"><Eye /> Show hand <Badge variant="secondary" className="ml-1">{roundVotes.length}/{voters.length}</Badge></Button>}
                   <Popover onOpenChange={(o) => o && setSkipNote(current.note ?? '')}>
                     <PopoverTrigger asChild><Button variant="ghost" size={room?.revealed ? 'lg' : 'lg'} className="text-muted-foreground"><SkipForward /> Skip · needs more info</Button></PopoverTrigger>
                     <PopoverContent className="w-80">
@@ -336,7 +339,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
                   </>}
                   {shown && !result?.suggested && <Button size="lg" variant="outline" onClick={actions.revote}><RotateCcw /> No numbers yet · Revote</Button>}
                 </div>
-              ) : <p className="text-sm text-muted-foreground">{!room?.revealed ? `${roundVotes.length}/${here.length} voted · the host shows the cards` : 'Waiting for the host to save the points…'}</p>}
+              ) : <p className="text-sm text-muted-foreground">{!room?.revealed ? `${roundVotes.length}/${voters.length} voted · the dealer shows the hand` : 'Waiting for the host to save the points…'}</p>}
               {isHost && shown && (
                 <div className="flex flex-wrap items-center justify-center gap-1.5 text-sm text-muted-foreground">
                   Or save a different number:
@@ -347,9 +350,18 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
           )}
 
           {/* Hand */}
-          {!current || current.points || current.skipped ? null : me?.status === 'here' ? (
-            <div className="flex justify-center gap-3 pb-2 pt-2">
+          {!current || current.points || current.skipped ? null : isDealer ? (
+            <div className="flex flex-wrap items-center justify-center gap-3 pb-4 text-sm text-muted-foreground" data-testid="dealer-panel">
+              <span>You're the dealer: the team votes, you show the hand.</span>
+              <span className="font-medium text-foreground">{allIn ? 'All cards are in.' : `${roundVotes.length} of ${voters.length} cards in.`}</span>
+              <Button size="sm" variant="ghost" onClick={() => actions.setHostVotes(true)}>Vote too</Button>
+            </div>
+          ) : me?.status === 'here' ? (
+            <div className="grid justify-items-center gap-1 pb-2 pt-2">
+            {isHost && <Button size="sm" variant="ghost" className="text-xs text-muted-foreground" onClick={() => actions.setHostVotes(false)}>Just deal, don't vote</Button>}
+            <div className="flex justify-center gap-3">
               {DECK.map((v) => <TicketCard key={v} value={v} color={me ? castById(me.character).color : undefined} selected={myVote === v} disabled={!current || !!current.points || !!room?.revealed} onClick={() => { sfx.pick(); actions.vote(v) }} />)}
+            </div>
             </div>
           ) : (
             <div className="flex items-center justify-center gap-3 pb-4 text-sm text-muted-foreground">You're marked away, so you're watching. <Button size="sm" onClick={() => actions.setStatus('here')}>Take my seat</Button></div>

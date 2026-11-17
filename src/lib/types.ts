@@ -54,6 +54,8 @@ export interface Room {
   adoPattern: string
   /** How many backlog stories sit above the "Next session" line (default 6). */
   nextCount?: number | null
+  /** The host deals (doesn't vote) unless this is true. */
+  hostVotes?: boolean | null
 }
 export interface Snapshot {
   room: Room | null

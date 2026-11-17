@@ -80,6 +80,8 @@ export function useRoom(roomId: string) {
   const roundVotes = votes.filter((v) => v.storyId === current?.id && v.round === room?.round)
   const myVote = roundVotes.find((v) => v.memberId === meId)?.value ?? null
   const isHost = !!room && room.hostId === meId
+  /** The host is the dealer: runs the board and shows the hand, but doesn't vote (unless they turn on "Vote too"). */
+  const isDealer = isHost && !room?.hostVotes
   const result = room?.revealed ? judge(roundVotes.map((v) => v.value)) : null
 
   // Heartbeat so others can see who is in the room right now.
@@ -104,6 +106,7 @@ export function useRoom(roomId: string) {
     send: (e: LiveEvent) => db.send(e),
 
     async join(name: string, character: string) {
+      if (!name.trim() || !character) return // everyone picks an avatar
       await db.upsertMember({ id: meId, roomId, name: name.trim(), character, status: 'here', lastSeen: Date.now() })
       if (room && (!room.hostId || !members.some((m) => m.id === room.hostId))) await patchRoom({ hostId: meId })
     },
@@ -118,7 +121,7 @@ export function useRoom(roomId: string) {
     async claimHost() { await patchRoom({ hostId: meId }) },
 
     async vote(value: CardValue) {
-      if (!current || !room || room.revealed || current.points || current.skipped) return // pointed/skipped stories are locked
+      if (!current || !room || room.revealed || current.points || current.skipped || isDealer) return // pointed/skipped stories are locked; the dealer doesn't vote
       const id = `${current.id}:${room.round}:${meId}`
       if (myVote === value) await db.removeVote(id)
       else await db.upsertVote({ id, roomId, storyId: current.id, memberId: meId, round: room.round, value })
@@ -234,6 +237,11 @@ export function useRoom(roomId: string) {
       putLocal(changed) // no snap-back while saving
       await db.upsertStories(changed)
     },
+    /** Dealer only by default; turn on to let the host vote too. Turning it off removes the host's vote this round. */
+    async setHostVotes(on: boolean) {
+      await patchRoom({ hostVotes: on })
+      if (!on && current && room) await db.removeVote(`${current.id}:${room.round}:${meId}`)
+    },
     async setNextCount(n: number) { await patchRoom({ nextCount: Math.max(1, Math.min(30, Math.round(n))) }) },
     async editStory(s: Story) { putLocal([s]); await db.upsertStories([s]) },
     async removeStory(id: string) {
@@ -272,6 +280,6 @@ export function useRoom(roomId: string) {
     },
   }
 
-  return { ready, error, mode: db.mode, meId, me, room, members, sprints, stories, votes, activeSprint, lineup, backlog, upNext, current, roundVotes, myVote, isHost, result, actions }
+  return { ready, error, mode: db.mode, meId, me, room, members, sprints, stories, votes, activeSprint, lineup, backlog, upNext, current, roundVotes, myVote, isHost, isDealer, result, actions }
 }
 export type RoomApi = ReturnType<typeof useRoom>

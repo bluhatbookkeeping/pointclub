@@ -14,7 +14,9 @@ export function Lobby({ api, onEnter }: { api: RoomApi; onEnter: () => void }) {
   const { me, members, activeSprint, actions } = api
   const taken = new Set(members.filter((m) => m.id !== me?.id).map((m) => m.character))
   const [name, setName] = useState(me?.name ?? '')
-  const [character, setCharacter] = useState(me?.character ?? CAST.find((c) => !taken.has(c.id))?.id ?? CAST[0].id)
+  // Nobody gets an avatar by default: each person picks one before taking a seat.
+  const [character, setCharacter] = useState<string>(me?.character ?? '')
+  const ready = !!name.trim() && !!character && !taken.has(character)
   const [editing, setEditing] = useState(!me)
   const sprintLine = <>{sessionName(activeSprint?.name)}</>
 
@@ -65,12 +67,15 @@ export function Lobby({ api, onEnter }: { api: RoomApi; onEnter: () => void }) {
           </div>
         </CardContent>
         <CardFooter>
-          <form className="flex w-full items-end gap-3" onSubmit={async (e) => { e.preventDefault(); if (!name.trim()) return; if (me) await actions.updateMe({ name: name.trim(), character }); else await actions.join(name, character); onEnter() }}>
+          <form className="flex w-full items-end gap-3" onSubmit={async (e) => { e.preventDefault(); if (!ready) return; if (me) await actions.updateMe({ name: name.trim(), character }); else await actions.join(name, character); onEnter() }}>
             <div className="grid gap-1.5 flex-1 max-w-sm">
               <Label htmlFor="name">First name</Label>
               <Input id="name" placeholder="Your first name" value={name} onChange={(e) => setName(e.target.value)} autoFocus maxLength={24} />
             </div>
-            <Button disabled={!name.trim()}>Take my seat <ArrowRight /></Button>
+            <div className="grid justify-items-end gap-1">
+              {!character && <span className="text-xs text-amber-700" data-testid="pick-hint">Pick an avatar above first.</span>}
+              <Button disabled={!ready}>Take my seat <ArrowRight /></Button>
+            </div>
           </form>
         </CardFooter>
       </Card>
