@@ -20,4 +20,6 @@ export const CAST: CastMember[] = [
   { id: 'ghost', name: 'Ghost', role: 'Was never here', color: '#868E96' },
   { id: 'ace', name: 'Ace', role: 'Luck on demand', color: '#F03E3E' },
 ]
+// Portraits live in public/cast/<id>.jpg; the avatar falls back to initials if a file is missing.
+for (const c of CAST) c.image ??= `/cast/${c.id}.jpg`
 export const castById = (id: string) => CAST.find((c) => c.id === id) ?? CAST[0]
