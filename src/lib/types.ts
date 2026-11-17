@@ -1,4 +1,5 @@
-export type CardValue = '1' | '2' | '3' | '5' | '8' | '13' | '21' | '?' | 'coffee'
+/** 'pass' = sitting this story out: counts as done, ignored in the result. Not a card in the hand. */
+export type CardValue = '1' | '2' | '3' | '5' | '8' | '13' | '21' | '?' | 'coffee' | 'pass'
 export const DECK: CardValue[] = ['1', '2', '3', '5', '8', '13', '21', '?', 'coffee']
 export const NUMERIC: CardValue[] = ['1', '2', '3', '5', '8', '13', '21']
 

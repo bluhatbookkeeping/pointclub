@@ -391,12 +391,15 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
           {!current || current.points || current.skipped ? null : isDealer ? (
             <div className="flex flex-wrap items-center justify-center gap-3 pb-4 text-sm text-muted-foreground" data-testid="dealer-panel">
               <span>You're the dealer: the team votes, you show the hand.</span>
-              <span className="font-medium text-foreground">{allIn ? 'All cards are in.' : `${roundVotes.length} of ${voters.length} cards in.`}</span>
+              <span className="font-medium text-foreground">{allIn ? 'All cards are in.' : `${roundVotes.length} of ${voters.length} cards in. You can show the hand anytime; missing cards are left out.`}</span>
               <Button size="sm" variant="ghost" onClick={() => actions.setHostVotes(true)}>Vote too</Button>
             </div>
           ) : me?.status === 'here' ? (
             <div className="grid justify-items-center gap-1 pb-2 pt-2">
             {isHost && <Button size="sm" variant="ghost" className="text-xs text-muted-foreground" onClick={() => actions.setHostVotes(false)}>Just deal, don't vote</Button>}
+            {current && !room?.revealed && (myVote === 'pass'
+              ? <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="sitting-out">You're sitting this one out. <Button size="sm" variant="ghost" onClick={() => actions.vote('pass')}>Vote after all</Button></div>
+              : <Button size="sm" variant="ghost" className="text-xs text-muted-foreground" data-testid="sit-out" title="Skip voting on this story (e.g. you wrote it). Counts as done; left out of the result." onClick={() => actions.vote('pass')}>Sit this one out</Button>)}
             <div className="flex justify-center gap-3">
               {DECK.map((v) => <TicketCard key={v} value={v} color={me ? castById(me.character).color : undefined} selected={myVote === v} disabled={!current || !!current.points || !!room?.revealed} onClick={() => { sfx.pick(); actions.vote(v) }} />)}
             </div>

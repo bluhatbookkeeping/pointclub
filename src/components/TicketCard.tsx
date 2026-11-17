@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import type { CardValue } from '../lib/types'
 
-export const label = (v: CardValue | string) => (v === 'coffee' ? '☕' : v)
+export const label = (v: CardValue | string) => (v === 'coffee' ? '☕' : v === 'pass' ? 'Out' : v)
 const SUIT = '♠'
 
 /** A real-looking playing card in your hand. */
