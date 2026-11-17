@@ -55,7 +55,8 @@ export function PokerTable({ seats, faceUp, votesIn, center }: { seats: SeatInfo
         if (s.dealer) return null // the dealer doesn't play a card
         return (
           <div key={'c' + s.member.id} className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: `${p.x}%`, top: `${p.y}%` }}>
-            <SeatCard value={s.vote} faceUp={faceUp} delay={i * 0.08} color={castById(s.member.character).color} />
+            {/* Sitting out and coffee aren't secret estimates, so they show right away. */}
+            <SeatCard value={s.vote} faceUp={faceUp || s.vote === 'pass' || s.vote === 'coffee'} delay={i * 0.08} color={castById(s.member.character).color} />
           </div>
         )
       })}
@@ -78,6 +79,8 @@ export function PokerTable({ seats, faceUp, votesIn, center }: { seats: SeatInfo
             <div className="rounded-md border bg-background/95 px-2 py-0.5 text-center shadow-sm leading-tight">
               <div className="text-xs font-semibold whitespace-nowrap">{s.member.name}{s.isMe ? ' (you)' : ''}</div>
               {s.dealer && <div className="text-[10px] font-semibold uppercase tracking-wider text-[#a8862a]">Dealer</div>}
+              {!faceUp && s.vote === 'pass' && <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground" data-testid="seat-out">Sitting out</div>}
+              {!faceUp && s.vote === 'coffee' && <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-700" data-testid="seat-coffee">☕ Needs a break</div>}
             </div>
             {s.spotlight && <Badge variant="destructive" className="uppercase tracking-wider text-[10px]">Explain your vote</Badge>}
           </div>
