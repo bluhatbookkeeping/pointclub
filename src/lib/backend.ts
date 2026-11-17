@@ -1,8 +1,7 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import type { LiveEvent, Member, Room, Snapshot, Sprint, Story, Vote } from './types'
 
 export interface Backend {
-  mode: 'local' | 'supabase'
+  mode: 'local' | 'api'
   load(): Promise<Snapshot>
   subscribe(onChange: () => void, onEvent: (e: LiveEvent) => void): () => void
   send(e: LiveEvent): void
@@ -17,6 +16,7 @@ export interface Backend {
 }
 
 type Table = 'rooms' | 'members' | 'sprints' | 'stories' | 'votes'
+
 
 /* ---------- Local demo: localStorage + BroadcastChannel (tabs in one browser) ---------- */
 class LocalBackend implements Backend {
@@ -60,56 +60,76 @@ class LocalBackend implements Backend {
   async removeVote(id: string) { this.write('votes', (x) => delete x[id]) }
 }
 
-/* ---------- Supabase: Postgres tables + Realtime ---------- */
-const toSnake = (o: Record<string, any>) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase()), v]))
-const toCamel = (o: Record<string, any>) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()), v]))
+/* ---------- Team mode: Vercel API + Neon Postgres, polled about once a second ---------- */
+const CLIENT_ID = Math.random().toString(36).slice(2)
 
-class SupabaseBackend implements Backend {
-  mode = 'supabase' as const
-  private live: ReturnType<SupabaseClient['channel']> | null = null
-  constructor(private sb: SupabaseClient, private roomId: string) {}
-  private async all<T>(t: Table, col = 'room_id'): Promise<T[]> {
-    const { data, error } = await this.sb.from(t).select('*').eq(col, this.roomId)
-    if (error) throw error
-    return (data ?? []).map((r) => toCamel(r) as T)
+class ApiBackend implements Backend {
+  mode = 'api' as const
+  private version = -1
+  private lastEvent = -1
+  private snap: Snapshot | null = null
+  private onChange: () => void = () => {}
+  private onEvent: (e: LiveEvent) => void = () => {}
+  private timer: ReturnType<typeof setTimeout> | undefined
+  private lastChangeAt = Date.now()
+  private stopped = false
+  private inflight: Promise<void> | null = null
+  constructor(private roomId: string) {}
+  private url() { return `/api/room?id=${encodeURIComponent(this.roomId)}` }
+
+  private async poll() {
+    if (this.inflight) return this.inflight
+    this.inflight = (async () => {
+      const r = await fetch(`${this.url()}&v=${this.version}&e=${this.lastEvent}`, { cache: 'no-store' })
+      if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? `HTTP ${r.status}`)
+      const j = await r.json()
+      this.lastEvent = j.lastEvent
+      for (const e of j.events ?? []) if (e?._cid !== CLIENT_ID) this.onEvent(e)
+      if (!j.unchanged) {
+        this.version = j.version; this.snap = j.snapshot; this.lastChangeAt = Date.now()
+        this.onChange()
+      }
+    })().finally(() => { this.inflight = null })
+    return this.inflight
+  }
+  private schedule() {
+    if (this.stopped) return
+    const idle = Date.now() - this.lastChangeAt > 120_000
+    const delay = document.hidden ? 5000 : idle ? 3000 : 1000
+    this.timer = setTimeout(() => this.poll().catch(() => {}).finally(() => this.schedule()), delay)
   }
   async load(): Promise<Snapshot> {
-    const [rooms, members, sprints, stories, votes] = await Promise.all([
-      this.all<Room>('rooms', 'id'), this.all<Member>('members'), this.all<Sprint>('sprints'), this.all<Story>('stories'), this.all<Vote>('votes'),
-    ])
-    return { room: rooms[0] ?? null, members, sprints, stories, votes }
+    if (!this.snap) await this.poll()
+    return this.snap ?? { room: null, members: [], sprints: [], stories: [], votes: [] }
   }
   subscribe(onChange: () => void, onEvent: (e: LiveEvent) => void) {
-    let t: ReturnType<typeof setTimeout> | undefined
-    const bump = () => { clearTimeout(t); t = setTimeout(onChange, 60) }
-    const ch = this.sb.channel('room:' + this.roomId)
-    for (const table of ['members', 'sprints', 'stories', 'votes'] as Table[])
-      ch.on('postgres_changes' as any, { event: '*', schema: 'public', table, filter: `room_id=eq.${this.roomId}` }, bump)
-    ch.on('postgres_changes' as any, { event: '*', schema: 'public', table: 'rooms', filter: `id=eq.${this.roomId}` }, bump)
-    ch.on('broadcast', { event: 'live' }, ({ payload }) => onEvent(payload as LiveEvent))
-    ch.subscribe()
-    this.live = ch
-    return () => { clearTimeout(t); this.sb.removeChannel(ch) }
+    this.onChange = onChange; this.onEvent = onEvent; this.stopped = false
+    const wake = () => { if (!document.hidden) { clearTimeout(this.timer); this.poll().catch(() => {}).finally(() => this.schedule()) } }
+    document.addEventListener('visibilitychange', wake)
+    this.schedule()
+    return () => { this.stopped = true; clearTimeout(this.timer); document.removeEventListener('visibilitychange', wake) }
   }
-  send(e: LiveEvent) { onLocal(e); this.live?.send({ type: 'broadcast', event: 'live', payload: e }) }
-  private async up(t: Table, rows: Record<string, any>[]) { const { error } = await this.sb.from(t).upsert(rows.map(toSnake)); if (error) throw error }
-  private async del(t: Table, id: string) { const { error } = await this.sb.from(t).delete().eq('id', id); if (error) throw error }
-  upsertRoom(r: Room) { return this.up('rooms', [r]) }
-  upsertMember(m: Member) { return this.up('members', [m]) }
-  removeMember(id: string) { return this.del('members', id) }
-  upsertSprint(s: Sprint) { return this.up('sprints', [s]) }
-  upsertStories(s: Story[]) { return this.up('stories', s) }
-  removeStory(id: string) { return this.del('stories', id) }
-  upsertVote(v: Vote) { return this.up('votes', [v]) }
-  removeVote(id: string) { return this.del('votes', id) }
+  private async post(op: string, data: unknown) {
+    const r = await fetch(this.url(), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op, data }) })
+    if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? `HTTP ${r.status}`)
+    this.lastChangeAt = Date.now()
+    if (op !== 'event') await this.poll().catch(() => {}) // show my own change right away
+  }
+  send(e: LiveEvent) { onLocal(e); this.post('event', { ...e, _cid: CLIENT_ID }).catch(() => {}) }
+  upsertRoom(r: Room) { return this.post('upsertRoom', r) }
+  upsertMember(m: Member) { return this.post('upsertMember', m) }
+  removeMember(id: string) { return this.post('removeMember', { id }) }
+  upsertSprint(s: Sprint) { return this.post('upsertSprint', s) }
+  upsertStories(s: Story[]) { return this.post('upsertStories', s) }
+  removeStory(id: string) { return this.post('removeStory', { id }) }
+  upsertVote(v: Vote) { return this.post('upsertVote', v) }
+  removeVote(id: string) { return this.post('removeVote', { id }) }
 }
-// Supabase broadcast does not echo to the sender, so the sender plays its own event.
+// The sender plays its own live events immediately; the server copy is skipped by client id.
 let onLocal: (e: LiveEvent) => void = () => {}
 export const setLocalEcho = (f: (e: LiveEvent) => void) => { onLocal = f }
 
 export function makeBackend(roomId: string): Backend {
-  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
-  const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
-  if (url && key) return new SupabaseBackend(createClient(url, key), roomId)
+  if (import.meta.env.VITE_BACKEND === 'api') return new ApiBackend(roomId)
   return new LocalBackend(roomId)
 }

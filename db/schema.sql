@@ -1,5 +1,5 @@
--- Point Club Cinema schema. Open access by design (no logins): anyone with a room link can play.
-create table rooms (
+-- Point Club schema (Postgres / Neon). Safe to run more than once.
+create table if not exists rooms (
   id text primary key,
   name text not null default 'Point Club',
   host_id text,
@@ -7,9 +7,10 @@ create table rooms (
   current_story_id text,
   revealed boolean not null default false,
   round int not null default 1,
-  ado_pattern text not null default ''
+  ado_pattern text not null default '',
+  version bigint not null default 1
 );
-create table members (
+create table if not exists members (
   id text primary key,
   room_id text not null references rooms(id) on delete cascade,
   name text not null,
@@ -17,7 +18,7 @@ create table members (
   status text not null default 'here' check (status in ('here','away')),
   last_seen bigint not null default 0
 );
-create table sprints (
+create table if not exists sprints (
   id text primary key,
   room_id text not null references rooms(id) on delete cascade,
   name text not null,
@@ -25,7 +26,7 @@ create table sprints (
   started_at bigint not null,
   closed_at bigint
 );
-create table stories (
+create table if not exists stories (
   id text primary key,
   room_id text not null references rooms(id) on delete cascade,
   sprint_id text not null references sprints(id) on delete cascade,
@@ -37,7 +38,7 @@ create table stories (
   rounds int not null default 1,
   "order" int not null default 0
 );
-create table votes (
+create table if not exists votes (
   id text primary key,
   room_id text not null references rooms(id) on delete cascade,
   story_id text not null references stories(id) on delete cascade,
@@ -45,20 +46,14 @@ create table votes (
   round int not null,
   value text not null
 );
-create index on members(room_id);
-create index on sprints(room_id);
-create index on stories(room_id);
-create index on votes(room_id);
-
-alter table rooms enable row level security;
-alter table members enable row level security;
-alter table sprints enable row level security;
-alter table stories enable row level security;
-alter table votes enable row level security;
-create policy "open" on rooms for all using (true) with check (true);
-create policy "open" on members for all using (true) with check (true);
-create policy "open" on sprints for all using (true) with check (true);
-create policy "open" on stories for all using (true) with check (true);
-create policy "open" on votes for all using (true) with check (true);
-
-alter publication supabase_realtime add table rooms, members, sprints, stories, votes;
+create table if not exists events (
+  id bigserial primary key,
+  room_id text not null references rooms(id) on delete cascade,
+  payload jsonb not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists members_room on members(room_id);
+create index if not exists sprints_room on sprints(room_id);
+create index if not exists stories_room on stories(room_id);
+create index if not exists votes_room on votes(room_id);
+create index if not exists events_room on events(room_id, id);

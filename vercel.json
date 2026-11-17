@@ -1,0 +1,3 @@
+{
+  "functions": { "api/room.ts": { "includeFiles": "db/schema.sql", "maxDuration": 10 } }
+}

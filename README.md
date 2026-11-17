@@ -11,10 +11,14 @@ Open the printed address and click **Open a new table**. To play as several peop
 
 Without Supabase keys, the app runs in **demo mode**: tabs in one browser share the room, and nobody else can join.
 
-## Share with the team (Supabase + Vercel)
-1. Create a Supabase project and run `supabase/migrations/001_init.sql` in its SQL editor.
-2. Copy `.env.example` to `.env` and fill in `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. Set the same two values in Vercel.
-3. Deploy to Vercel (`npm run build` → `dist/`).
+## Share with the team (Vercel + Neon, both free)
+1. Import this repo into Vercel.
+2. In the Vercel project, open **Storage**, connect **Neon** (sets `DATABASE_URL`), and add the env var `VITE_BACKEND=api`.
+3. Deploy. The API creates its tables on first use (`db/schema.sql`), so there's no manual database step.
+
+Each screen checks the server for changes about once a second (every 3 s after two quiet minutes, every 5 s in a background tab).
+
+To test team mode locally without Vercel, run `npm run dev:api`. It serves the same API on an in-memory Postgres; open the room in several browsers or profiles.
 
 ## How a session goes
 - **Lobby:** pick a character and type a first name. Next time the same browser gets "Welcome back" with three buttons: *Take my seat*, *I'm away*, *Not me / remove*.
@@ -31,4 +35,4 @@ Without Supabase keys, the app runs in **demo mode**: tabs in one browser share 
 ## Notes
 - The room is open to anyone with the link, by design. The only data stored is story numbers, titles, ADO links, first names and votes.
 - Crew portraits (original, AI-generated with Higgsfield) live in `public/cast/<id>.jpg`. Replace a file to change a face; a missing file falls back to initials.
-- `npm test` runs the consensus and screenshot-parser tests.
+- `npm test` runs the consensus, screenshot-parser and room-API tests (the API tests use an in-memory Postgres).
