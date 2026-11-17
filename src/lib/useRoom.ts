@@ -137,15 +137,27 @@ export function useRoom(roomId: string) {
       await goToNextOpen(current)
     },
     /** Park the current story for next sprint ("needs more info"), with an optional note, and move on. */
+    /**
+     * Skip ("needs more info"): the story goes straight back to the top of the backlog with the note, for the next
+     * backlog refinement. The table keeps it marked Skipped so this session's history shows it.
+     */
     async skipStory(note: string) {
       if (!current || !room) return
-      await db.upsertStories([{ ...current, skipped: true, note: note.trim() }])
+      const n = note.trim()
+      const marked = { ...current, skipped: true, note: n }
+      await ensureList(backlogId, 'Backlog')
+      const top = backlog.length ? Math.min(...backlog.map((x) => x.order)) - 1 : 0
+      const copy: Story = { ...current, id: uid(), sprintId: backlogId, points: null, outcome: null, rounds: 1, order: top, skipped: false, note: n || 'Skipped: needs more info' }
+      putLocal([marked, copy]); await db.upsertStories([marked, copy])
       await goToNextOpen(current)
     },
-    /** Bring a skipped story back into this sprint's voting. */
+    /** Changed your mind: point the skipped story now, and take its copy back out of the backlog. */
     async unskipStory() {
       if (!current) return
-      await db.upsertStories([{ ...current, skipped: false }])
+      const copies = storiesRef.current.filter((s) => s.sprintId === backlogId && s.number === current.number)
+      const back = { ...current, skipped: false }
+      putLocal([back]); await db.upsertStories([back])
+      for (const c of copies) await actions.removeStory(c.id)
     },
     async selectStory(id: string) {
       const s = stories.find((x) => x.id === id)
@@ -193,7 +205,8 @@ export function useRoom(roomId: string) {
       await ensureList(nextId, 'Next session')
       const base = upNext.length ? Math.max(...upNext.map((s) => s.order)) + 1 : 0
       const picked = ids.map((id) => stories.find((s) => s.id === id)).filter(Boolean) as Story[]
-      const moved = picked.map((s, i) => ({ ...s, sprintId: nextId, order: base + i, skipped: false }))
+      // Its refinement note has done its job once it's picked for the next session.
+      const moved = picked.map((s, i) => ({ ...s, sprintId: nextId, order: base + i, skipped: false, note: '' }))
       putLocal(moved); await db.upsertStories(moved)
     },
     /** Put everything in the Next session list on the table for pointing; the list empties. */
@@ -243,7 +256,7 @@ export function useRoom(roomId: string) {
       await db.upsertSprint(next)
       // Stories that weren't pointed go back to the top of the backlog (with their notes). The finished session
       // keeps a copy marked as skipped, so its history stays accurate.
-      const carry = lineup.filter((s) => !s.points)
+      const carry = lineup.filter((s) => !s.points && !s.skipped) // skipped ones are already back in the backlog
       if (carry.length) {
         const dest = carryTo === 'next' ? nextId : backlogId
         const destList = carryTo === 'next' ? upNext : backlog
@@ -252,7 +265,7 @@ export function useRoom(roomId: string) {
         await db.upsertStories(carry.map((s) => ({ ...s, skipped: true })))
         await db.upsertStories(carry.map((s, i) => ({
           ...s, id: uid(), sprintId: dest, points: null, outcome: null, rounds: 1, order: top + i, skipped: false,
-          note: s.note ? `Not pointed last session: ${s.note.replace(/^(Carried from[^:]*|Not pointed last session): /, '')}` : 'Not pointed last session',
+          note: carryTo === 'next' ? '' : s.note ? `Not pointed last session: ${s.note.replace(/^(Carried from[^:]*|Not pointed last session): /, '')}` : 'Not pointed last session',
         })))
       }
       await patchRoom({ activeSprintId: next.id, currentStoryId: null, revealed: false, round: 1 })

@@ -14,7 +14,7 @@ export function NewSprint({ api, open, onClose }: { api: RoomApi; open: boolean;
   const [carryTo, setCarryTo] = useState<'backlog' | 'next'>('next')
   useEffect(() => { if (open) { setName(`Refinement Session ${nextNum}`); setCarryTo('next') } }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
   const pointed = api.lineup.filter((s) => s.points).length
-  const left = api.lineup.filter((s) => !s.points).length
+  const left = api.lineup.filter((s) => !s.points && !s.skipped).length
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent>

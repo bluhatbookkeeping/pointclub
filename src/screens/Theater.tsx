@@ -206,7 +206,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
                 renderItem={(s, _i, handle) => (
                 <div role="button" tabIndex={isHost ? 0 : -1} onClick={() => isHost && actions.selectStory(s.id)} data-testid="session-row"
                   onKeyDown={(e) => { if (isHost && e.key === 'Enter') actions.selectStory(s.id) }}
-                  title={s.points ? `Done: ${s.points} points. Click to view or revote.` : s.skipped ? `Skipped, goes back to the backlog${s.note ? `: ${s.note}` : ''}` : s.note || undefined}
+                  title={s.points ? `Done: ${s.points} points. Click to view or revote.` : s.skipped ? `Skipped, back in the backlog${s.note ? `: ${s.note}` : ''}` : s.note || undefined}
                   className={cn('group flex items-start gap-1.5 rounded-md px-1.5 py-1.5 text-left text-sm transition-colors', isHost ? 'cursor-pointer' : 'cursor-default',
                     s.id === current?.id ? 'bg-secondary font-medium' : 'hover:bg-secondary/60 text-muted-foreground',
                     (s.points || s.skipped) && s.id !== current?.id && 'opacity-55')}>
@@ -266,7 +266,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
                   <div className="flex-1 min-w-0">
                     <div className="label text-emerald-700">All stories done</div>
                     <div className="mt-1 text-2xl font-semibold tracking-tight">{pointedCount} pointed · {totalPts} points</div>
-                    {skippedCount > 0 && <div className="text-sm text-amber-800">{skippedCount} skipped · goes back to the backlog</div>}
+                    {skippedCount > 0 && <div className="text-sm text-amber-800">{skippedCount} skipped · back in the backlog with notes</div>}
                   </div>
                   {isHost && <Button variant="outline" onClick={openPlanner}><ListChecks /> Plan stories</Button>}
                   {isHost && <Button onClick={() => setShowNewSprint(true)}><Clapperboard /> Finish session</Button>}
@@ -307,7 +307,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
           {current && current.skipped && !current.points && (
             // Skipped this session: show why, and let the host bring it back now.
             <div className="flex flex-wrap items-center justify-center gap-3">
-              <Badge variant="outline" className="border-amber-300 bg-amber-50 px-3 py-1 text-sm text-amber-800"><SkipForward className="mr-1 h-4 w-4" /> Skipped · goes back to the backlog</Badge>
+              <Badge variant="outline" className="border-amber-300 bg-amber-50 px-3 py-1 text-sm text-amber-800"><SkipForward className="mr-1 h-4 w-4" /> Skipped · back in the backlog{current.note ? `: ${current.note}` : ''}</Badge>
               {isHost && <Button variant="outline" size="sm" onClick={actions.unskipStory}><Undo2 /> Point it now</Button>}
               {isHost && nextUnpointed && <Button size="sm" onClick={() => actions.selectStory(nextUnpointed.id)}>Next story <ArrowRight /></Button>}
             </div>
@@ -322,7 +322,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
                     <PopoverContent className="w-80">
                       <form className="grid gap-2" onSubmit={(e) => { e.preventDefault(); actions.skipStory(skipNote) }}>
                         <div className="text-sm font-medium">Skip this story for now?</div>
-                        <p className="text-xs text-muted-foreground">When you finish the session it goes back to the backlog with this note.</p>
+                        <p className="text-xs text-muted-foreground">It goes straight back to the top of the backlog with this note, for your next backlog refinement.</p>
                         <Input autoFocus placeholder="e.g. Waiting on API details from Sam" value={skipNote} onChange={(e) => setSkipNote(e.target.value)} maxLength={300} />
                         <Button type="submit" size="sm">Skip &amp; next story <ArrowRight /></Button>
                       </form>
