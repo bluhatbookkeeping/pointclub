@@ -59,7 +59,9 @@ function LinkInput({ story, onDone }: { story: Story; onDone: (v: string) => voi
  * Every change saves immediately. Stories only leave the backlog by moving to the session or by Delete.
  */
 export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
-  const { backlog, lineup, upNext, isHost, actions, room, activeSprint } = api
+  const { backlog, lineup, upNext, actions, room, activeSprint } = api
+  // Anyone on the team can add, edit and pick stories (the dealer still runs the voting).
+  const isHost = !!api.me
   const [picked, setPicked] = useState<string[]>([])
   const [fresh, setFresh] = useState<string[]>([])
   const [linkNote, setLinkNote] = useState<string | null>(null)

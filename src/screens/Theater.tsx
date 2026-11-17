@@ -28,6 +28,22 @@ import { isOnlineAt, isOpen, type RoomApi } from '@/lib/useRoom'
 
 type Phase = 'voting' | 'countdown' | 'shown'
 
+/** "+ Add a story" at the table: number and title, straight onto the table. Anyone can use it. */
+function QuickAdd({ onAdd }: { onAdd: (number: string, title: string) => Promise<unknown> }) {
+  const [open, setOpen] = useState(false)
+  const [num, setNum] = useState('')
+  const [title, setTitle] = useState('')
+  if (!open) return <Button variant="outline" size="sm" className="mt-3 w-full justify-start" onClick={() => setOpen(true)} data-testid="quick-add"><Plus /> Add a story</Button>
+  return (
+    <form className="mt-3 grid gap-1.5 rounded-md border p-2" onSubmit={async (e) => { e.preventDefault(); if (!num.trim() || !title.trim()) return; await onAdd(num.trim(), title.trim()); setNum(''); setTitle('') }}>
+      <div className="text-xs font-medium">Add a story to this session</div>
+      <Input autoFocus autoComplete="off" data-lpignore="true" className="h-8 font-mono" placeholder="Story #" inputMode="numeric" value={num} onChange={(e) => setNum(e.target.value.replace(/\D/g, ''))} aria-label="Quick story number" />
+      <Input autoComplete="off" data-lpignore="true" className="h-8" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Quick story title" />
+      <div className="flex gap-1.5"><Button type="submit" size="sm" className="flex-1" disabled={!num.trim() || !title.trim()}>Add</Button><Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>Done</Button></div>
+    </form>
+  )
+}
+
 function IconBtn({ tip, children, ...p }: React.ComponentProps<typeof Button> & { tip: string }) {
   return <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label={tip} {...p}>{children}</Button></TooltipTrigger><TooltipContent>{tip}</TooltipContent></Tooltip>
 }
@@ -174,7 +190,9 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
             {mode === 'local' && <Tooltip><TooltipTrigger asChild><Badge variant="destructive" className="whitespace-nowrap">Demo mode</Badge></TooltipTrigger><TooltipContent className="max-w-xs whitespace-normal">Team mode is off, so only tabs in this browser share the room. This only happens when running Point Club on your own computer.</TooltipContent></Tooltip>}
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
-            {isHost && <Button variant="outline" size="sm" onClick={openPlanner} title="Plan stories: add stories, rank the backlog, pick the next session"><ListChecks /><span className="hidden lg:inline">Plan stories</span></Button>}
+            {!isHost && me && <Button variant="outline" size="sm" data-testid="be-dealer" title="Take over as dealer: run the voting and show the hand"
+              onClick={() => { const cur = members.find((m) => m.id === room?.hostId); if (!cur || confirm(`Take over as dealer from ${cur.name}?`)) actions.claimHost() }}><Crown /><span className="hidden lg:inline">Be the dealer</span></Button>}
+            {<Button variant="outline" size="sm" onClick={openPlanner} title="Plan stories: add stories, rank the backlog, pick the next session"><ListChecks /><span className="hidden lg:inline">Plan stories</span></Button>}
             {isHost && <Button variant="outline" size="sm" onClick={() => setShowNewSprint(true)} title="Finish this session and save it to Past stories"><Clapperboard /><span className="hidden lg:inline">Finish session</span></Button>}
             {isHost && (
               <Popover onOpenChange={(o) => o && setInvite(inviteEmail())}>
@@ -235,6 +253,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
                 </div>
               )} />
             </nav>
+            {me && <QuickAdd onAdd={(number, title) => actions.addStories([{ number, title }], room?.adoPattern ?? '', 'session')} />}
             <button onClick={openPlanner} className="mt-3 w-full rounded-md border border-dashed px-2 py-2 text-left text-sm text-muted-foreground hover:bg-secondary/60 hover:text-foreground" data-testid="backlog-link">
               Backlog: {backlog.length} {backlog.length === 1 ? 'story' : 'stories'} · <span className="font-medium text-primary">Plan stories →</span>
             </button>
@@ -285,7 +304,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
                     <div className="mt-1 text-2xl font-semibold tracking-tight">{pointedCount} pointed · {totalPts} points</div>
                     {skippedCount > 0 && <div className="text-sm text-amber-800">{skippedCount} skipped · back in the backlog with notes</div>}
                   </div>
-                  {isHost && <Button variant="outline" onClick={openPlanner}><ListChecks /> Plan stories</Button>}
+                  <Button variant="outline" onClick={openPlanner}><ListChecks /> Plan stories</Button>
                   {isHost && <Button onClick={() => setShowNewSprint(true)}><Clapperboard /> Finish session</Button>}
                 </div>
               ) : <div className="flex flex-1 items-center gap-4"><span className="flex-1 text-muted-foreground">{lineup.length ? 'Pick a story on the left to start.' : isHost ? (upNext.length ? `${upNext.length} ${upNext.length === 1 ? 'story is' : 'stories are'} ready in Next session.` : backlog.length ? 'Pick the stories for this meeting on the Plan stories page.' : 'No stories yet. Add some to start.') : 'Waiting for the host…'}</span>
@@ -306,11 +325,13 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
               mood: shown && verdict === 'blockbuster' ? 'cheer' : shown && verdict === 'plottwist' ? 'shock' : !v && current && !shown ? 'thinking' : 'idle',
               menu: m.id === me?.id ? undefined : <>
                 {['💵', '🪙', '🍅', '🌹', '☕'].map((it) => <Button key={it} variant="ghost" size="icon" className="text-xl" onClick={() => actions.send({ kind: 'throw', from: me!.id, to: m.id, item: it })}>{it}</Button>)}
-                {isHost && <><Separator orientation="vertical" className="h-6 mx-1" /><Button variant="ghost" size="sm" onClick={() => actions.makeHost(m.id)}><Crown /> Make host</Button></>}
+                {isHost && <><Separator orientation="vertical" className="h-6 mx-1" /><Button variant="ghost" size="sm" onClick={() => actions.makeHost(m.id)}><Crown /> Make dealer</Button>
+                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" aria-label={`Remove ${m.name} from the table`}
+                    onClick={() => confirm(`Remove ${m.name} from the table?\nThey can join again from the link. Their past votes stay in Past stories.`) && actions.removeMember(m.id)}><Trash2 /> Remove</Button></>}
               </>,
             }
           })} />
-          {room && !hostHere && <div className="text-center"><Button variant="outline" size="sm" onClick={actions.claimHost}><Crown /> No host right now. Be the host</Button></div>}
+          {room && !hostHere && <div className="text-center"><Button variant="outline" size="sm" onClick={actions.claimHost}><Crown /> No dealer right now. Be the dealer</Button></div>}
 
           {/* Results + host controls */}
           {current && current.points && !room?.revealed && (
