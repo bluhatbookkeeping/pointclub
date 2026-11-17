@@ -29,7 +29,7 @@ export function useRoom(roomId: string) {
         if (!s.room) {
           const sprint: Sprint = { id: uid(), roomId, name: 'Sprint 1', title: 'The Pilot', startedAt: Date.now(), closedAt: null }
           const room: Room = { id: roomId, name: 'Point Club', hostId: null, activeSprintId: sprint.id, currentStoryId: null, revealed: false, round: 1, adoPattern: '' }
-          await db.upsertRoom(room); await db.upsertSprint(sprint)
+          await db.ensureRoom(room, sprint)
         }
         await refresh()
       } catch (e: any) { setError(e?.message ?? String(e)) }
@@ -56,7 +56,8 @@ export function useRoom(roomId: string) {
     return () => clearInterval(t)
   }, [db, me?.id, me?.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const patchRoom = (p: Partial<Room>) => room && db.upsertRoom({ ...room, ...p })
+  // Send only the changed fields, so two quick changes (or two people) can't undo each other.
+  const patchRoom = (p: Partial<Room>) => room && db.patchRoom(p)
 
   const actions = {
     onEvent(h: (e: LiveEvent) => void) { eventHandlers.current.push(h); return () => { eventHandlers.current = eventHandlers.current.filter((x) => x !== h) } },
@@ -105,7 +106,7 @@ export function useRoom(roomId: string) {
       const base = lineup.length ? Math.max(...lineup.map((s) => s.order)) + 1 : 0
       const created: Story[] = rows.map((r, i) => ({
         id: uid(), roomId, sprintId: activeSprint.id, number: r.number, title: r.title,
-        url: buildAdoUrl(pattern, r.number), points: null, outcome: null, rounds: 1, order: base + i,
+        url: r.url?.trim() || buildAdoUrl(pattern, r.number), points: null, outcome: null, rounds: 1, order: base + i,
       }))
       await db.upsertStories(created)
       if (!room.currentStoryId || !stories.some((s) => s.id === room.currentStoryId && s.sprintId === activeSprint.id))

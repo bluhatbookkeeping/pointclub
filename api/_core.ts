@@ -105,6 +105,31 @@ export async function handle(db: Query, method: string, query: Record<string, an
         await db("delete from events where room_id = $1 and created_at < now() - interval '2 minutes'", [roomId])
         return { status: 200, body: { ok: true } }
       }
+      if (op === 'ensureRoom') {
+        // First visitor creates the room and its first sprint; anyone arriving at the same moment changes nothing.
+        const [rc, rv] = toRow('rooms', roomId, body?.data?.room)
+        const created = await db(`insert into rooms (${rc.map(q).join(',')}) values (${rv.map((_, n) => `$${n + 1}`).join(',')}) on conflict (id) do nothing returning id`, rv)
+        if (created.length) {
+          const [sc, sv] = toRow('sprints', roomId, body?.data?.sprint)
+          await upsert(db, 'sprints', sc, sv)
+        }
+        return { status: 200, body: { ok: true, created: created.length > 0 } }
+      }
+      if (op === 'patchRoom') {
+        const data = body?.data
+        if (!data || typeof data !== 'object') throw new BadRequest('missing data')
+        const cols: string[] = [], vals: unknown[] = []
+        for (const col of TABLES.rooms) {
+          if (col.name === 'id') continue
+          const key = camel(col.name)
+          if (key in data) { cols.push(col.name); vals.push(clean(col, data[key])) }
+        }
+        if (!cols.length) throw new BadRequest('nothing to update')
+        const set = cols.map((c, n) => `${q(c)} = $${n + 2}`).join(', ')
+        const r = await db(`update rooms set ${set}, version = version + 1 where id = $1 returning id`, [roomId, ...vals])
+        if (!r.length) throw new BadRequest('room does not exist')
+        return { status: 200, body: { ok: true } }
+      }
       const spec = OPS[op]
       if (!spec) throw new BadRequest('unknown op')
       if (spec.table !== 'rooms') {

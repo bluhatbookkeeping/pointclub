@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { judge } from './consensus'
-import { parseStories, buildAdoUrl } from './parseStories'
+import { parseStories, buildAdoUrl, toAdoPattern } from './parseStories'
 
 describe('judge', () => {
   it('all the same is a blockbuster, ignoring ? and coffee', () => {
@@ -36,4 +36,23 @@ New  Active`
   })
   it('skips duplicates and short noise', () => expect(parseStories('1234 ok\n1234 Again title\n555 ab')).toEqual([{ number: '1234', title: 'Again title' }]))
   it('builds links', () => expect(buildAdoUrl('https://x/_workitems/edit/{id}', '42')).toBe('https://x/_workitems/edit/42'))
+  it('builds no link from a pattern without {id}', () => expect(buildAdoUrl('https://x/_workitems/edit/48213', '42')).toBe(''))
+  it('keeps a " | " inside a title', () =>
+    expect(parseStories('344554 Examinee Portal | Hide past appointments')).toEqual([{ number: '344554', title: 'Examinee Portal | Hide past appointments' }]))
+  it('captures a link written on the same line', () =>
+    expect(parseStories('48214 Add vendor search https://dev.azure.com/o/p/_workitems/edit/48214')).toEqual([
+      { number: '48214', title: 'Add vendor search', url: 'https://dev.azure.com/o/p/_workitems/edit/48214' },
+    ]))
+})
+
+describe('toAdoPattern', () => {
+  it('turns a real story link into a template', () => {
+    expect(toAdoPattern('https://dev.azure.com/org/proj/_workitems/edit/48213')).toBe('https://dev.azure.com/org/proj/_workitems/edit/{id}')
+    expect(toAdoPattern('https://dev.azure.com/org/proj/_workitems/edit/48213/')).toBe('https://dev.azure.com/org/proj/_workitems/edit/{id}/')
+    expect(toAdoPattern('https://org.visualstudio.com/proj/_boards/board?workitem=344554')).toBe('https://org.visualstudio.com/proj/_boards/board?workitem={id}')
+  })
+  it('leaves templates and blanks alone', () => {
+    expect(toAdoPattern('https://x/edit/{id}')).toBe('https://x/edit/{id}')
+    expect(toAdoPattern('  ')).toBe('')
+  })
 })

@@ -107,20 +107,19 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
     <div className="min-h-screen flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex h-14 items-center gap-4 px-6">
+        <div className="flex h-14 items-center gap-3 px-4 whitespace-nowrap">
           <Logo />
           <Separator orientation="vertical" className="h-5" />
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex min-w-0 items-center gap-2 text-sm">
             <span className="font-medium">{activeSprint?.name}</span>
-            {activeSprint?.title && <span className="text-muted-foreground">{activeSprint.title}</span>}
-            <Badge variant="secondary">{pointedCount}/{lineup.length} pointed</Badge>
-            <Badge variant="outline">{totalPts} pts</Badge>
-            {mode === 'local' && <Tooltip><TooltipTrigger asChild><Badge variant="outline" className="text-muted-foreground">Demo mode</Badge></TooltipTrigger><TooltipContent>Tabs in this browser share the room. Connect Supabase to share with the team.</TooltipContent></Tooltip>}
+            {activeSprint?.title && <span className="hidden truncate text-muted-foreground 2xl:inline">{activeSprint.title}</span>}
+            <Badge variant="secondary" className="whitespace-nowrap">{pointedCount}/{lineup.length} pointed · {totalPts} pts</Badge>
+            {mode === 'local' && <Tooltip><TooltipTrigger asChild><Badge variant="destructive" className="whitespace-nowrap">Demo mode</Badge></TooltipTrigger><TooltipContent className="max-w-xs whitespace-normal">Team mode is off, so only tabs in this browser share the room. On Vercel, set VITE_BACKEND = api and redeploy.</TooltipContent></Tooltip>}
           </div>
-          <div className="ml-auto flex items-center gap-1">
-            {isHost && <Button variant="outline" size="sm" onClick={() => setShowLoad(true)}><Camera /> Load targets</Button>}
-            {isHost && <Button variant="outline" size="sm" onClick={() => setShowNewSprint(true)}><Clapperboard /> Wrap the job</Button>}
-            <Button variant="ghost" size="sm" onClick={openVault}><FolderOpen /> Case Files</Button>
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            {isHost && <Button variant="outline" size="sm" onClick={() => setShowLoad(true)} title="Add stories"><Camera /><span className="hidden lg:inline">Add stories</span></Button>}
+            {isHost && <Button variant="outline" size="sm" onClick={() => setShowNewSprint(true)} title="Wrap the sprint"><Clapperboard /><span className="hidden lg:inline">Wrap sprint</span></Button>}
+            <Button variant="ghost" size="sm" onClick={openVault} title="Case Files (sprint history)"><FolderOpen /><span className="hidden lg:inline">Case Files</span></Button>
             <IconBtn tip={copied ? 'Copied!' : 'Copy room link'} onClick={copyLink}>{copied ? <Check /> : <Link2 />}</IconBtn>
             <IconBtn tip={voices ? 'Turn crew voices off' : 'Turn crew voices on'} onClick={() => { setVoicesEnabled(!voices); setVoices(!voices) }}>{voices ? <MessageSquare /> : <MessageSquareOff />}</IconBtn>
             <IconBtn tip={muted ? 'Unmute' : 'Mute'} onClick={() => { setMuted(!muted); setMute(!muted) }}>{muted ? <VolumeX /> : <Volume2 />}</IconBtn>
@@ -131,10 +130,10 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
 
       <div className="flex flex-1">
         {/* Sidebar */}
-        <aside className="w-72 shrink-0 border-r">
-          <div className="sticky top-14 h-[calc(100vh-3.5rem)] overflow-auto p-4">
-            <div className="label px-2 mb-2">Targets</div>
-            {lineup.length === 0 && <p className="text-sm text-muted-foreground px-2">No targets yet. {isHost ? 'Use “Load targets” to add stories from a screenshot.' : 'Waiting for the host.'}</p>}
+        <aside className="w-64 shrink-0 border-r">
+          <div className="sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto overflow-x-hidden p-3">
+            <div className="label px-2 mb-2">Stories</div>
+            {lineup.length === 0 && <p className="text-sm text-muted-foreground px-2">No stories yet. {isHost ? 'Click “Add stories” to add them from a screenshot or a list.' : 'Waiting for the host.'}</p>}
             <nav className="grid gap-0.5">
               {lineup.map((s) => (
                 <button key={s.id} onClick={() => isHost && actions.selectStory(s.id)} disabled={!isHost}
@@ -142,7 +141,7 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
                   {s.points ? <Check className="mt-0.5 h-4 w-4 text-emerald-600 shrink-0" /> : <Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/50" />}
                   <span className="flex-1 min-w-0">
                     <span className="block font-mono text-xs text-muted-foreground">#{s.number}</span>
-                    <span className={cn('block truncate', s.id === current?.id && 'text-foreground')} title={s.title}>{s.title}</span>
+                    <span className={cn('block line-clamp-2 break-words leading-snug', s.id === current?.id && 'text-foreground')} title={s.title}>{s.title}</span>
                   </span>
                   {s.points && <Badge variant="secondary" className="font-mono">{label(s.points)}</Badge>}
                 </button>
@@ -159,15 +158,17 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
         {/* Main */}
         <main className="flex-1 min-w-0 flex flex-col gap-4 p-6">
           <Card>
-            <CardContent className="px-6 py-4 flex items-center gap-6">
+            <CardContent className="px-5 py-4 flex items-start gap-4">
               {current ? <>
                 <div className="flex-1 min-w-0">
-                  <div className="label">Target {lineup.findIndex((s) => s.id === current.id) + 1} of {lineup.length}{room && room.round > 1 ? ` · Attempt ${room.round}` : ''}</div>
-                  <h1 className="mt-1 text-2xl font-semibold tracking-tight truncate"><span className="font-mono text-accent">#{current.number}</span> {current.title}</h1>
+                  <div className="label"><span className="text-accent">Now pointing</span> · Story {lineup.findIndex((s) => s.id === current.id) + 1} of {lineup.length}{room && room.round > 1 ? ` · Revote ${room.round - 1}` : ''}</div>
+                  <h1 className={cn('mt-1 font-semibold tracking-tight break-words line-clamp-3', current.title.length > 70 ? 'text-lg' : 'text-2xl')} title={current.title}>
+                    <span className="font-mono text-accent">#{current.number}</span> {current.title}
+                  </h1>
                 </div>
-                {current.url ? <Button variant="outline" onClick={openAdo}>Open in ADO <ExternalLink /></Button>
-                  : isHost ? <span className="text-xs text-muted-foreground max-w-48">Set your ADO link pattern in “Load targets” to get story links.</span> : null}
-              </> : <div className="text-muted-foreground">No job on the board. {isHost ? 'Load targets to start planning.' : 'Waiting for the host…'}</div>}
+                {current.url ? <Button variant="outline" className="shrink-0" onClick={openAdo}>Open in ADO <ExternalLink /></Button>
+                  : isHost ? <Button variant="ghost" size="sm" className="shrink-0 text-muted-foreground" onClick={() => setShowLoad(true)}>Add ADO link</Button> : null}
+              </> : <div className="text-muted-foreground">No story selected. {isHost ? 'Click “Add stories” to start.' : 'Waiting for the host…'}</div>}
             </CardContent>
           </Card>
 

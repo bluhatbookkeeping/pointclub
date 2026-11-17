@@ -34,7 +34,7 @@ export function PokerTable({ seats, faceUp, votesIn, center }: { seats: SeatInfo
   const ordered = [...seats.slice(meIdx), ...seats.slice(0, meIdx)]
   const n = Math.max(ordered.length, 1)
   return (
-    <div className="relative mx-auto w-full max-w-[min(1000px,calc((100vh-400px)*1.8125))] select-none" style={{ aspectRatio: `${FW} / ${FH}` }}>
+    <div className="relative mx-auto mb-10 w-full max-w-[min(960px,calc((100vh-440px)*1.8125))] select-none" style={{ aspectRatio: `${FW} / ${FH}` }}>
       {/* Table */}
       <div className="absolute rounded-full" style={{ left: `${(OX / FW) * 100}%`, top: `${(OY / FH) * 100}%`, width: `${(TW / FW) * 100}%`, height: `${(TH / FH) * 100}%` }}>
         <div className="vegas-rail absolute inset-0 rounded-full" />
@@ -51,7 +51,7 @@ export function PokerTable({ seats, faceUp, votesIn, center }: { seats: SeatInfo
 
       {/* Cards on the felt */}
       {ordered.map((s, i) => {
-        const p = railPoint(i / n, -95)
+        const p = railPoint(i / n, -112)
         return (
           <div key={'c' + s.member.id} className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: `${p.x}%`, top: `${p.y}%` }}>
             <SeatCard value={s.vote} faceUp={faceUp} delay={i * 0.08} color={castById(s.member.character).color} />

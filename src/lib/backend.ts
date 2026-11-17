@@ -6,6 +6,10 @@ export interface Backend {
   subscribe(onChange: () => void, onEvent: (e: LiveEvent) => void): () => void
   send(e: LiveEvent): void
   upsertRoom(r: Room): Promise<void>
+  /** Create the room and its first sprint only if the room doesn't exist yet (safe when several people arrive at once). */
+  ensureRoom(r: Room, s: Sprint): Promise<void>
+  /** Change only the given room fields, never overwriting the rest with a stale copy. */
+  patchRoom(p: Partial<Room>): Promise<void>
   upsertMember(m: Member): Promise<void>
   removeMember(id: string): Promise<void>
   upsertSprint(s: Sprint): Promise<void>
@@ -51,6 +55,13 @@ class LocalBackend implements Backend {
   }
   send(e: LiveEvent) { const m = { type: 'event' as const, e }; this.ch.postMessage(m); this.listeners.forEach((l) => l(m)) }
   async upsertRoom(r: Room) { this.write('rooms', (x) => (x[r.id] = r)) }
+  async ensureRoom(r: Room, s: Sprint) {
+    if (this.read<Room>('rooms')[r.id]) return
+    await this.upsertRoom(r); await this.upsertSprint(s)
+  }
+  async patchRoom(p: Partial<Room>) {
+    this.write('rooms', (x) => { const cur = x[this.roomId]; if (cur) x[this.roomId] = { ...cur, ...p, id: this.roomId } })
+  }
   async upsertMember(m: Member) { this.write('members', (x) => (x[m.id] = m)) }
   async removeMember(id: string) { this.write('members', (x) => delete x[id]) }
   async upsertSprint(s: Sprint) { this.write('sprints', (x) => (x[s.id] = s)) }
@@ -117,6 +128,8 @@ class ApiBackend implements Backend {
   }
   send(e: LiveEvent) { onLocal(e); this.post('event', { ...e, _cid: CLIENT_ID }).catch(() => {}) }
   upsertRoom(r: Room) { return this.post('upsertRoom', r) }
+  patchRoom(p: Partial<Room>) { return this.post('patchRoom', p) }
+  ensureRoom(room: Room, sprint: Sprint) { return this.post('ensureRoom', { room, sprint }) }
   upsertMember(m: Member) { return this.post('upsertMember', m) }
   removeMember(id: string) { return this.post('removeMember', { id }) }
   upsertSprint(s: Sprint) { return this.post('upsertSprint', s) }

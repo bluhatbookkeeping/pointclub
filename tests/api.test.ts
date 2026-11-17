@@ -56,6 +56,24 @@ describe('room api', () => {
     expect((await get(-1, -1, 'roomA')).body.snapshot.members).toHaveLength(1)
   })
 
+  it('patchRoom changes only the fields sent (no stale overwrite)', async () => {
+    await post('upsertRoom', { name: 'x', hostId: 'm1', adoPattern: '', revealed: false, round: 1 })
+    await post('patchRoom', { adoPattern: 'https://ado/edit/{id}' })
+    await post('patchRoom', { currentStoryId: 'st1', revealed: false, round: 1 }) // the second save that used to wipe the link
+    const room = (await get()).body.snapshot.room
+    expect(room).toMatchObject({ adoPattern: 'https://ado/edit/{id}', currentStoryId: 'st1', hostId: 'm1' })
+    expect((await post('patchRoom', { version: 99 })).status).toBe(400) // not an allowed field
+    expect((await post('patchRoom', { name: 'y' }, 'nope')).status).toBe(400) // room must exist
+  })
+
+  it('ensureRoom creates the room and first sprint once, even if several people arrive together', async () => {
+    const mk = (n: string) => ({ room: { name: 'x', activeSprintId: 's-' + n, revealed: false, round: 1, adoPattern: '' }, sprint: { id: 's-' + n, name: 'Sprint 1', title: '', startedAt: 1 } })
+    await Promise.all([post('ensureRoom', mk('a')), post('ensureRoom', mk('b')), post('ensureRoom', mk('c'))])
+    const snap = (await get()).body.snapshot
+    expect(snap.sprints).toHaveLength(1)
+    expect(snap.room.activeSprintId).toBe(snap.sprints[0].id)
+  })
+
   it('delivers live events after the cursor only', async () => {
     await post('upsertRoom', { name: 'x' })
     const first = (await get()).body

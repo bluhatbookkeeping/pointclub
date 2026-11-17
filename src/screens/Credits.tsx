@@ -11,7 +11,7 @@ export function Credits({ api, sprint, onClose }: { api: RoomApi; sprint: Sprint
   useEffect(() => { sfx.fanfare(); setTimeout(() => voice.wrap(), 1200) }, [])
   const lines: [string, string][] = [
     ['Total points', String(st.total)],
-    ['Targets pointed', `${st.pointed.length}`],
+    ['Stories pointed', `${st.pointed.length}`],
     ['Clean jobs', `${st.blockbusters}`],
     ['Compromised', `${st.twists}`],
     ['Extra attempts', `${st.retakes}`],
@@ -30,7 +30,7 @@ export function Credits({ api, sprint, onClose }: { api: RoomApi; sprint: Sprint
         <div className="mt-16 grid gap-3 text-xl">{lines.map(([k, v]) => <div key={k}><span className="text-muted-foreground">{k}</span> · <b>{v}</b></div>)}</div>
         <div className="mt-16 label">Commendations</div>
         <div className="mt-4 grid gap-3 text-xl">{awards.filter(([, v]) => v).map(([k, v]) => <div key={k}>{k}<br /><b>{v}</b></div>)}</div>
-        <div className="mt-16 label">The targets</div>
+        <div className="mt-16 label">The stories</div>
         <div className="mt-4 grid gap-1 text-lg">{st.list.map((s) => <div key={s.id}><span className="text-muted-foreground">#{s.number}</span> {s.title} <b className="text-accent">{s.points ?? '–'}</b></div>)}</div>
         <div className="mt-24 text-ink/40">Filed in Case Files · click anywhere to skip</div>
       </motion.div>
