@@ -7,11 +7,14 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CAST, castById } from '@/lib/cast'
+import { isOnlineAt } from '@/lib/useRoom'
 import { cn, sessionName } from '@/lib/utils'
 import type { RoomApi } from '@/lib/useRoom'
 
 export function Lobby({ api, onEnter }: { api: RoomApi; onEnter: () => void }) {
   const { me, members, activeSprint, actions } = api
+  // People on this table's roster who aren't at the table right now: someone on a new computer can tap their name.
+  const returning = members.filter((m) => m.id !== me?.id && !isOnlineAt(m, Date.now())).sort((a, b) => a.name.localeCompare(b.name))
   const taken = new Set(members.filter((m) => m.id !== me?.id).map((m) => m.character))
   const [name, setName] = useState(me?.name ?? '')
   // Nobody gets an avatar by default: each person picks one before taking a seat.
@@ -56,6 +59,20 @@ export function Lobby({ api, onEnter }: { api: RoomApi; onEnter: () => void }) {
           <CardDescription>Now: {sprintLine}. No login: this browser remembers you next time.</CardDescription>
         </CardHeader>
         <CardContent>
+          {!me && returning.length > 0 && (
+            <div className="mb-5 rounded-lg border bg-secondary/40 p-3" data-testid="returning">
+              <div className="mb-2 text-sm font-medium">Been here before? Tap your name</div>
+              <div className="flex flex-wrap gap-2">
+                {returning.map((m) => (
+                  <button key={m.id} onClick={() => actions.becomeMember(m.id)} aria-label={`I'm ${m.name}`}
+                    className="flex items-center gap-2 rounded-full border bg-background py-1 pl-1 pr-3 text-sm hover:border-primary hover:bg-secondary">
+                    <Avatar character={m.character} name={m.name} size={28} /> {m.name}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-3 text-sm font-medium">New here? Pick an avatar and type your name</div>
+            </div>
+          )}
           <div className="grid grid-cols-6 gap-2">
             {CAST.map((c) => {
               const isTaken = taken.has(c.id), sel = character === c.id

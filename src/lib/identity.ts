@@ -9,6 +9,10 @@ export function getMyId(roomId: string): string {
     return id
   } catch { return 'guest-' + Math.random().toString(36).slice(2) }
 }
+/** "Been here before? Tap your name": this browser becomes that existing person. */
+export function setMyId(roomId: string, id: string) {
+  try { localStorage.setItem(key(roomId), id) } catch { /* ignore */ }
+}
 export function forgetMe(roomId: string) {
   try { localStorage.removeItem(key(roomId)) } catch { /* ignore */ }
 }

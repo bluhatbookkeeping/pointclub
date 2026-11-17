@@ -24,7 +24,7 @@ import { blockbusterBurst, clearFx, sparkleBurst } from '@/lib/fx'
 import { isMuted, setMuted, sfx } from '@/lib/sounds'
 import { cn, sessionName } from '@/lib/utils'
 import { DECK, NUMERIC, Outcome } from '@/lib/types'
-import { isOpen, type RoomApi } from '@/lib/useRoom'
+import { isOnlineAt, isOpen, type RoomApi } from '@/lib/useRoom'
 
 type Phase = 'voting' | 'countdown' | 'shown'
 
@@ -38,8 +38,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
   // Teammates who joined in an earlier week but haven't opened the link today are listed as "Not here yet".
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 15_000); return () => clearInterval(t) }, [])
-  const ONLINE_MS = 3 * 60_000
-  const isOnline = (m: { id: string; lastSeen: number }) => m.id === me?.id || now - (m.lastSeen || 0) < ONLINE_MS
+  const isOnline = (m: { id: string; lastSeen: number }) => m.id === me?.id || isOnlineAt(m, now)
   const here = members.filter((m) => m.status === 'here' && isOnline(m)).sort((a, b) => a.name.localeCompare(b.name))
   const notYet = members.filter((m) => m.status === 'here' && !isOnline(m)).sort((a, b) => a.name.localeCompare(b.name))
   // Who votes: everyone here except the dealer (the host), unless the host turned on "Vote too".
@@ -242,7 +241,9 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
             {notYet.length > 0 && <>
               <Separator className="my-4" />
               <div className="label px-2 mb-2">Not here yet</div>
-              <div className="grid gap-1 px-2" data-testid="not-yet">{notYet.map((m) => <div key={m.id} className="flex items-center gap-2 text-sm text-muted-foreground"><Avatar character={m.character} name={m.name} size={22} dim /> {m.name}</div>)}</div>
+              <div className="grid gap-1 px-2" data-testid="not-yet">{notYet.map((m) => <div key={m.id} className="group flex items-center gap-2 text-sm text-muted-foreground"><Avatar character={m.character} name={m.name} size={22} dim /> <span className="flex-1">{m.name}</span>
+                {isHost && <button className="opacity-0 hover:text-destructive group-hover:opacity-100" title={`Remove ${m.name} from this table`} aria-label={`Remove ${m.name}`}
+                  onClick={() => confirm(`Remove ${m.name} from this table?\nUse this for test players or people who left the team. Their past votes stay in Past stories.`) && actions.removeMember(m.id)}><Trash2 className="h-3.5 w-3.5" /></button>}</div>)}</div>
             </>}
             {away.length > 0 && <>
               <Separator className="my-4" />

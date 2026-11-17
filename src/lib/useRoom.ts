@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { makeBackend, setLocalEcho } from './backend'
 import { judge } from './consensus'
-import { getMyId, forgetMe, uid } from './identity'
+import { getMyId, forgetMe, setMyId, uid } from './identity'
 import { buildAdoUrl, ParsedStory } from './parseStories'
 import type { CardValue, LiveEvent, Member, Room, Snapshot, Sprint, Story } from './types'
+
+/** Someone is "at the table" while their screen checks in (every 30 seconds); 3 minutes of silence means they left. */
+export const ONLINE_MS = 3 * 60_000
+export const isOnlineAt = (m: { lastSeen: number }, now: number) => now - (m.lastSeen || 0) < ONLINE_MS
 
 /** A story still waiting for points this sprint (not pointed, not skipped). */
 export const isOpen = (s: Story) => !s.points && !s.skipped
@@ -117,6 +121,14 @@ export function useRoom(roomId: string) {
       if (status === 'here' && room && !members.some((m) => m.id === room.hostId && m.status === 'here')) await patchRoom({ hostId: meId })
     },
     async updateMe(p: Partial<Pick<Member, 'name' | 'character'>>) { if (me) await db.upsertMember({ ...me, ...p }) },
+    /** Returning on a new computer or browser: become your existing self (name, avatar, history, dealer role). */
+    becomeMember(id: string) {
+      setMyId(roomId, id)
+      try { sessionStorage.removeItem('pointclub:in:' + location.search) } catch { /* ignore */ }
+      location.reload()
+    },
+    /** Dealer tidy-up: take someone (e.g. an old test player) off this table's roster. Their past votes stay in history. */
+    async removeMember(id: string) { if (id !== meId) await db.removeMember(id) },
     /** Shared computer: forget who this browser is (they stay in the room, shown as "Not here yet") and start fresh. */
     switchPerson() {
       forgetMe(roomId)
