@@ -38,7 +38,10 @@ export function Lobby({ api, onEnter }: { api: RoomApi; onEnter: () => void }) {
               <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => confirm('Remove yourself from this room? You can always join again.') && actions.leave()}><LogOut /> Remove</Button>
             </div>
           </CardContent>
-          <CardFooter className="justify-center text-xs text-muted-foreground">Now: {sprintLine}</CardFooter>
+          <CardFooter className="flex-col gap-1 text-xs text-muted-foreground">
+            <span>Now: {sprintLine}</span>
+            <button className="underline hover:text-foreground" data-testid="switch-person" onClick={actions.switchPerson}>Not {me.name}? Join as someone new (shared computer)</button>
+          </CardFooter>
         </Card>
       </div>
     )

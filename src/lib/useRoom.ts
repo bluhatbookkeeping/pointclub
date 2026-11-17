@@ -117,6 +117,12 @@ export function useRoom(roomId: string) {
       if (status === 'here' && room && !members.some((m) => m.id === room.hostId && m.status === 'here')) await patchRoom({ hostId: meId })
     },
     async updateMe(p: Partial<Pick<Member, 'name' | 'character'>>) { if (me) await db.upsertMember({ ...me, ...p }) },
+    /** Shared computer: forget who this browser is (they stay in the room, shown as "Not here yet") and start fresh. */
+    switchPerson() {
+      forgetMe(roomId)
+      try { sessionStorage.removeItem('pointclub:in:' + location.search) } catch { /* ignore */ }
+      location.reload()
+    },
     async leave() { await db.removeMember(meId); forgetMe(roomId); location.reload() },
     async makeHost(memberId: string) { await patchRoom({ hostId: memberId }) },
     async claimHost() { await patchRoom({ hostId: meId }) },
