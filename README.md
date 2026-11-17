@@ -30,5 +30,5 @@ Without Supabase keys, the app runs in **demo mode**: tabs in one browser share 
 
 ## Notes
 - The room is open to anyone with the link, by design. The only data stored is story numbers, titles, ADO links, first names and votes.
-- Portraits are silhouette placeholders until the Higgsfield ones are generated. Add a portrait by setting `image` in `src/lib/cast.ts`.
+- Crew portraits (original, AI-generated with Higgsfield) live in `public/cast/<id>.jpg`. Replace a file to change a face; a missing file falls back to initials.
 - `npm test` runs the consensus and screenshot-parser tests.
