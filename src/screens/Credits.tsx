@@ -2,12 +2,13 @@ import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { sprintStats } from '../lib/awards'
 import { sfx } from '../lib/sounds'
+import { voice } from '../lib/voice'
 import type { Sprint } from '../lib/types'
 import type { RoomApi } from '../lib/useRoom'
 
 export function Credits({ api, sprint, onClose }: { api: RoomApi; sprint: Sprint; onClose: () => void }) {
   const st = sprintStats(sprint, api.stories, api.votes, api.members)
-  useEffect(() => { sfx.fanfare() }, [])
+  useEffect(() => { sfx.fanfare(); setTimeout(() => voice.wrap(), 1200) }, [])
   const lines: [string, string][] = [
     ['Total points', String(st.total)],
     ['Targets pointed', `${st.pointed.length}`],

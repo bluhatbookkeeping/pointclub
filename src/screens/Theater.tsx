@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Camera, Clapperboard, Crown, ExternalLink, FolderOpen, Link2, RotateCcw, Volume2, VolumeX, UserRound, Eye, Check, Circle } from 'lucide-react'
+import { Camera, Clapperboard, Crown, ExternalLink, FolderOpen, Link2, RotateCcw, Volume2, VolumeX, UserRound, Eye, Check, Circle, MessageSquare, MessageSquareOff } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
 import { PokerTable } from '@/components/PokerTable'
 import { TicketCard, label } from '@/components/TicketCard'
@@ -15,7 +15,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { LoadStories } from './LoadStories'
 import { NewSprint } from './NewSprint'
 import { Credits } from './Credits'
-import { castById } from '@/lib/cast'
+import { CAST, castById } from '@/lib/cast'
+import { setVoicesEnabled, voice, voicesEnabled } from '@/lib/voice'
 import { blockbusterBurst, clearFx, sparkleBurst } from '@/lib/fx'
 import { isMuted, setMuted, sfx } from '@/lib/sounds'
 import { cn } from '@/lib/utils'
@@ -35,6 +36,7 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
   const [phase, setPhase] = useState<Phase>(room?.revealed ? 'shown' : 'voting')
   const [verdict, setVerdict] = useState<Outcome | null>(null)
   const [muted, setMute] = useState(isMuted())
+  const [voices, setVoices] = useState(voicesEnabled())
   const [showLoad, setShowLoad] = useState(false)
   const [showNewSprint, setShowNewSprint] = useState(false)
   const [creditsFor, setCreditsFor] = useState<string | null>(null)
@@ -51,13 +53,40 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
     prev.current = { key, revealed: room?.revealed, sprint: room?.activeSprintId }
   }, [room?.revealed, key, room?.activeSprintId])
 
+  useEffect(() => { voice.preload(CAST.map((c) => c.id)) }, [])
+
+  // A crew member's voice line plays on every screen when they put down a card (not on first load).
+  const seenVotes = useRef<{ key: string; ids: Set<string> } | null>(null)
+  useEffect(() => {
+    const ids = new Set(roundVotes.map((v) => v.id))
+    const seen = seenVotes.current
+    if (seen && seen.key === key && !room?.revealed) {
+      for (const v of roundVotes) if (!seen.ids.has(v.id)) {
+        const m = members.find((x) => x.id === v.memberId)
+        if (m) voice.vote(m.character)
+      }
+    }
+    seenVotes.current = { key, ids }
+  }, [roundVotes, key, room?.revealed, members])
+
+  // The narrator reacts when the host locks in points.
+  const seenPoints = useRef<Map<string, string | null> | null>(null)
+  useEffect(() => {
+    const now = new Map(lineup.map((s) => [s.id, s.points] as const))
+    const before = seenPoints.current
+    if (before) for (const [id, pts] of now) if (pts && !before.get(id)) voice.lockedIn(pts)
+    seenPoints.current = now
+  }, [lineup])
+
+  useEffect(() => { if (phase === 'countdown') voice.reveal() }, [phase])
+
   const finishCountdown = () => {
     setPhase('shown')
     const o = result?.outcome ?? 'none'
     setVerdict(o)
-    if (o === 'blockbuster') { sfx.fanfare(); blockbusterBurst() }
-    else if (o === 'critics') { sfx.sparkle(); sparkleBurst() }
-    else if (o === 'plottwist') { clearFx(); sfx.scratch() }
+    if (o === 'blockbuster') { voice.cleanJob(); blockbusterBurst() }
+    else if (o === 'critics') { sfx.sparkle(); voice.closeEnough(); sparkleBurst() }
+    else if (o === 'plottwist') { clearFx(); voice.compromised() }
     setTimeout(() => setVerdict(null), 2600)
   }
 
@@ -93,6 +122,7 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
             {isHost && <Button variant="outline" size="sm" onClick={() => setShowNewSprint(true)}><Clapperboard /> Wrap the job</Button>}
             <Button variant="ghost" size="sm" onClick={openVault}><FolderOpen /> Case Files</Button>
             <IconBtn tip={copied ? 'Copied!' : 'Copy room link'} onClick={copyLink}>{copied ? <Check /> : <Link2 />}</IconBtn>
+            <IconBtn tip={voices ? 'Turn crew voices off' : 'Turn crew voices on'} onClick={() => { setVoicesEnabled(!voices); setVoices(!voices) }}>{voices ? <MessageSquare /> : <MessageSquareOff />}</IconBtn>
             <IconBtn tip={muted ? 'Unmute' : 'Mute'} onClick={() => { setMuted(!muted); setMute(!muted) }}>{muted ? <VolumeX /> : <Volume2 />}</IconBtn>
             <IconBtn tip="My seat (lobby)" onClick={onLobby}>{me ? <Avatar character={me.character} name={me.name} size={26} /> : <UserRound />}</IconBtn>
           </div>
