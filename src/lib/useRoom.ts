@@ -30,7 +30,7 @@ export function useRoom(roomId: string) {
       try {
         const s = await db.load()
         if (!s.room) {
-          const sprint: Sprint = { id: uid(), roomId, name: 'Sprint 1', title: 'The Pilot', startedAt: Date.now(), closedAt: null }
+          const sprint: Sprint = { id: uid(), roomId, name: 'Session 1', title: '', startedAt: Date.now(), closedAt: null }
           const room: Room = { id: roomId, name: 'Point Club', hostId: null, activeSprintId: sprint.id, currentStoryId: null, revealed: false, round: 1, adoPattern: '' }
           await db.ensureRoom(room, sprint)
         }
@@ -41,7 +41,11 @@ export function useRoom(roomId: string) {
     return off
   }, [db, roomId, refresh])
 
-  const { room, members, sprints, stories, votes } = snap
+  const { room, members, stories, votes } = snap
+  // The backlog is a hidden holding list per room: stories waiting to be picked for an upcoming session.
+  const backlogId = `bl-${roomId}`.slice(0, 120)
+  const sprints = snap.sprints.filter((s) => s.id !== backlogId)
+  const backlog = stories.filter((s) => s.sprintId === backlogId).sort((a, b) => a.order - b.order)
   const me = members.find((m) => m.id === meId) ?? null
   const activeSprint = sprints.find((s) => s.id === room?.activeSprintId) ?? null
   const lineup = stories.filter((s) => s.sprintId === activeSprint?.id).sort((a, b) => a.order - b.order)
@@ -128,16 +132,38 @@ export function useRoom(roomId: string) {
       await db.upsertStories([{ ...current, points: null, outcome: null, rounds: round }])
       await patchRoom({ revealed: false, round })
     },
-    async addStories(rows: ParsedStory[], pattern = room?.adoPattern ?? '') {
+    /** Add stories to the backlog (default) or straight into this session. */
+    async addStories(rows: ParsedStory[], pattern = room?.adoPattern ?? '', to: 'backlog' | 'session' = 'session') {
       if (!activeSprint || !room) return
-      const base = lineup.length ? Math.max(...lineup.map((s) => s.order)) + 1 : 0
+      const list = to === 'backlog' ? backlog : lineup
+      if (to === 'backlog' && !snap.sprints.some((s) => s.id === backlogId))
+        await db.upsertSprint({ id: backlogId, roomId, name: 'Backlog', title: '', startedAt: 0, closedAt: null })
+      const base = list.length ? Math.max(...list.map((s) => s.order)) + 1 : 0
       const created: Story[] = rows.map((r, i) => ({
-        id: uid(), roomId, sprintId: activeSprint.id, number: r.number, title: r.title,
+        id: uid(), roomId, sprintId: to === 'backlog' ? backlogId : activeSprint.id, number: r.number, title: r.title,
         url: r.url?.trim() || buildAdoUrl(pattern, r.number), points: null, outcome: null, rounds: 1, order: base + i,
       }))
       await db.upsertStories(created)
-      if (!room.currentStoryId || !stories.some((s) => s.id === room.currentStoryId && s.sprintId === activeSprint.id))
+      if (to === 'session' && (!room.currentStoryId || !stories.some((s) => s.id === room.currentStoryId && s.sprintId === activeSprint.id)))
         await patchRoom({ currentStoryId: created[0]?.id ?? null, revealed: false, round: 1 })
+    },
+    /** Pick backlog stories for this session (in the order given). */
+    async moveToSession(ids: string[]) {
+      if (!activeSprint || !room || !ids.length) return
+      const base = lineup.length ? Math.max(...lineup.map((s) => s.order)) + 1 : 0
+      const picked = ids.map((id) => stories.find((s) => s.id === id)).filter(Boolean) as Story[]
+      await db.upsertStories(picked.map((s, i) => ({ ...s, sprintId: activeSprint.id, order: base + i, skipped: false })))
+      if (!current) await patchRoom({ currentStoryId: picked[0].id, revealed: false, round: picked[0].rounds })
+    },
+    /** Put a story from this session back in the backlog. */
+    async moveToBacklog(id: string) {
+      const s = stories.find((x) => x.id === id)
+      if (!s || !room) return
+      if (!snap.sprints.some((x) => x.id === backlogId))
+        await db.upsertSprint({ id: backlogId, roomId, name: 'Backlog', title: '', startedAt: 0, closedAt: null })
+      const base = backlog.length ? Math.min(...backlog.map((x) => x.order)) - 1 : 0 // goes to the top of the backlog
+      await db.upsertStories([{ ...s, sprintId: backlogId, order: base, points: null, outcome: null, skipped: false }])
+      if (room.currentStoryId === id) await goToNextOpen(s)
     },
     async editStory(s: Story) { await db.upsertStories([s]) },
     async removeStory(id: string) {
@@ -155,20 +181,23 @@ export function useRoom(roomId: string) {
       if (activeSprint) await db.upsertSprint({ ...activeSprint, closedAt: Date.now() })
       const next: Sprint = { id: uid(), roomId, name, title, startedAt: Date.now(), closedAt: null }
       await db.upsertSprint(next)
-      // Skipped and unpointed stories move to the new sprint (with their notes). The old sprint keeps them
-      // marked as skipped, so its history stays accurate.
+      // Stories that weren't pointed go back to the top of the backlog (with their notes). The finished session
+      // keeps a copy marked as skipped, so its history stays accurate.
       const carry = lineup.filter((s) => !s.points)
       if (carry.length) {
+        if (!snap.sprints.some((x) => x.id === backlogId))
+          await db.upsertSprint({ id: backlogId, roomId, name: 'Backlog', title: '', startedAt: 0, closedAt: null })
+        const top = backlog.length ? Math.min(...backlog.map((x) => x.order)) - carry.length : 0
         await db.upsertStories(carry.map((s) => ({ ...s, skipped: true })))
         await db.upsertStories(carry.map((s, i) => ({
-          ...s, id: uid(), sprintId: next.id, points: null, outcome: null, rounds: 1, order: i, skipped: false,
-          note: s.note ? `Carried from ${activeSprint?.name ?? 'last sprint'}: ${s.note}` : `Carried from ${activeSprint?.name ?? 'last sprint'}`,
+          ...s, id: uid(), sprintId: backlogId, points: null, outcome: null, rounds: 1, order: top + i, skipped: false,
+          note: s.note ? `Not pointed last session: ${s.note.replace(/^(Carried from[^:]*|Not pointed last session): /, '')}` : 'Not pointed last session',
         })))
       }
       await patchRoom({ activeSprintId: next.id, currentStoryId: null, revealed: false, round: 1 })
     },
   }
 
-  return { ready, error, mode: db.mode, meId, me, room, members, sprints, stories, votes, activeSprint, lineup, current, roundVotes, myVote, isHost, result, actions }
+  return { ready, error, mode: db.mode, meId, me, room, members, sprints, stories, votes, activeSprint, lineup, backlog, current, roundVotes, myVote, isHost, result, actions }
 }
 export type RoomApi = ReturnType<typeof useRoom>

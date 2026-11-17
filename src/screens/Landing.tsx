@@ -10,7 +10,7 @@ export function Landing() {
       <div className="max-w-xl text-center flex flex-col items-center gap-6">
         <Badge variant="secondary" className="rounded-full">Planning poker · no logins</Badge>
         <Logo big />
-        <p className="text-lg text-muted-foreground">Point your stories like a heist crew. Open a table once, share the link, and come back to the same link every sprint.</p>
+        <p className="text-lg text-muted-foreground">Planning poker for your team. Open a room once, share the link, and use the same link every week.</p>
         <Button size="lg" onClick={open}>Open a new table <ArrowRight /></Button>
       </div>
     </div>

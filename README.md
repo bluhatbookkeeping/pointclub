@@ -1,6 +1,6 @@
 # Point Club 🃏
 
-Planning poker styled as a bright heist movie. One permanent room link, no logins, characters, sound, a 3‑2‑1 card reveal, and a Case Files that keeps every sprint.
+Planning poker styled as a bright heist movie. One permanent room link, no logins, characters, sound, a 3‑2‑1 card reveal, and a Past stories that keeps every sprint.
 
 ## Try it locally (demo mode)
 ```bash
@@ -29,7 +29,7 @@ To test team mode locally without Vercel, run `npm run dev:api`. It serves the s
   - ⚠️ **Compromised:** the votes are 2+ cards apart. The high and low voters get a spotlight.
 - **Lock it in** a number (the crowd pick is highlighted), or start a revote (*Take 2*).
 - Click a teammate's seat to throw 💵🪙🍅🌹 at them.
-- **Wrap the job** shows "The Take" for everyone (awards: Sharpshooter, Most Contrarian, Coffee Break MVP) and saves the sprint to the **Case Files** (posters, velocity chart, every vote, CSV export).
+- **Finish session** shows a recap for everyone (awards: Sharpshooter, Most Contrarian, Coffee Break MVP) and saves the sprint to the **Past stories** (posters, velocity chart, every vote, CSV export).
 - **Open in ADO ↗** opens the story in a side window, where you're already signed in through the VPN. ADO doesn't allow itself to be shown inside other sites.
 
 ## Notes

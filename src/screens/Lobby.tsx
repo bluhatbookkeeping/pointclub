@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CAST, castById } from '@/lib/cast'
-import { cn } from '@/lib/utils'
+import { cn, sessionName } from '@/lib/utils'
 import type { RoomApi } from '@/lib/useRoom'
 
 export function Lobby({ api, onEnter }: { api: RoomApi; onEnter: () => void }) {
@@ -16,7 +16,7 @@ export function Lobby({ api, onEnter }: { api: RoomApi; onEnter: () => void }) {
   const [name, setName] = useState(me?.name ?? '')
   const [character, setCharacter] = useState(me?.character ?? CAST.find((c) => !taken.has(c.id))?.id ?? CAST[0].id)
   const [editing, setEditing] = useState(!me)
-  const sprintLine = <>{activeSprint?.name}{activeSprint?.title ? ` · ${activeSprint.title}` : ''}</>
+  const sprintLine = <>{sessionName(activeSprint?.name)}</>
 
   if (me && !editing) {
     const c = castById(me.character)
@@ -26,7 +26,7 @@ export function Lobby({ api, onEnter }: { api: RoomApi; onEnter: () => void }) {
           <CardHeader className="items-center text-center">
             <Avatar character={me.character} name={me.name} size={112} mood="cheer" />
             <CardTitle className="text-2xl pt-3">Welcome back, {me.name}</CardTitle>
-            <CardDescription>{c.name} · {c.role}{me.status === 'away' ? ' · marked away' : ''}</CardDescription>
+            <CardDescription>{me.status === "away" ? "Marked away" : "Good to see you again."}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2">
             <Button size="lg" onClick={async () => { await actions.setStatus('here'); onEnter() }}><Armchair /> Take my seat</Button>
@@ -36,7 +36,7 @@ export function Lobby({ api, onEnter }: { api: RoomApi; onEnter: () => void }) {
               <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => confirm('Remove yourself from this room? You can always join again.') && actions.leave()}><LogOut /> Remove</Button>
             </div>
           </CardContent>
-          <CardFooter className="justify-center text-xs text-muted-foreground">On the board: {sprintLine}</CardFooter>
+          <CardFooter className="justify-center text-xs text-muted-foreground">Now: {sprintLine}</CardFooter>
         </Card>
       </div>
     )
@@ -47,8 +47,8 @@ export function Lobby({ api, onEnter }: { api: RoomApi; onEnter: () => void }) {
       <Card className="w-[880px] max-w-full">
         <CardHeader>
           <Logo />
-          <CardTitle className="text-2xl pt-4">Pick your role on the crew</CardTitle>
-          <CardDescription>On the board: {sprintLine}. No login: this browser remembers you for next sprint.</CardDescription>
+          <CardTitle className="text-2xl pt-4">Pick your avatar</CardTitle>
+          <CardDescription>Now: {sprintLine}. No login: this browser remembers you next time.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-6 gap-2">
@@ -58,8 +58,7 @@ export function Lobby({ api, onEnter }: { api: RoomApi; onEnter: () => void }) {
                 <button key={c.id} disabled={isTaken} onClick={() => setCharacter(c.id)}
                   className={cn('rounded-lg border p-3 flex flex-col items-center gap-2 transition-colors disabled:opacity-40', sel ? 'border-primary bg-secondary ring-1 ring-primary' : 'border-transparent hover:bg-secondary')}>
                   <Avatar character={c.id} size={60} mood={sel ? 'cheer' : 'idle'} dim={isTaken} />
-                  <span className="text-xs font-medium leading-tight">{c.name}</span>
-                  <span className="text-[10px] text-muted-foreground leading-tight -mt-1.5">{isTaken ? 'Taken' : c.role}</span>
+                  {isTaken && <span className="text-[10px] text-muted-foreground leading-tight">Taken</span>}
                 </button>
               )
             })}

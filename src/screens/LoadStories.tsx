@@ -1,64 +1,91 @@
-import { useEffect, useState } from 'react'
-import { AlertCircle, Check, ImageUp, Loader2, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { AlertCircle, Check, ChevronDown, ImageUp, Loader2, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { readImage } from '@/lib/ocr'
 import { buildAdoUrl, ParsedStory, parseStories, toAdoPattern } from '@/lib/parseStories'
+import { cn } from '@/lib/utils'
 import type { RoomApi } from '@/lib/useRoom'
 
-/** A row's link: what the person typed for that story, otherwise the one built from the pattern. */
-const linkFor = (r: ParsedStory, pattern: string) => (r.url?.trim() ? r.url.trim() : buildAdoUrl(pattern, r.number))
+type Row = { number: string; title: string; url: string }
+const blank = (): Row => ({ number: '', title: '', url: '' })
+const BLANK_ROWS = 5
+const hasContent = (r: Row) => !!(r.number.trim() || r.title.trim() || r.url.trim())
 
-export function LoadStories({ api, open, onClose }: { api: RoomApi; open: boolean; onClose: () => void }) {
-  const { room, lineup, actions } = api
-  const [linkInput, setLinkInput] = useState(room?.adoPattern ?? '')
-  const [rows, setRows] = useState<ParsedStory[]>([])
+/** Learn the ADO link pattern from any row whose link contains its own story number. */
+function learnPattern(rows: Row[], fallback: string) {
+  for (const r of rows) {
+    const url = r.url.trim()
+    if (url && r.number && url.includes(r.number)) {
+      const p = toAdoPattern(url)
+      if (p.includes('{id}') && buildAdoUrl(p, r.number) === url) return p
+    }
+  }
+  return fallback
+}
+
+export function LoadStories({ api, open, onClose, defaultTo = 'backlog' }: { api: RoomApi; open: boolean; onClose: () => void; defaultTo?: 'backlog' | 'session' }) {
+  const { room, actions } = api
+  const [rows, setRows] = useState<Row[]>(() => Array.from({ length: BLANK_ROWS }, blank))
+  const [to, setTo] = useState<'backlog' | 'session'>(defaultTo)
   const [raw, setRaw] = useState('')
+  const [bulkOpen, setBulkOpen] = useState(false)
   const [progress, setProgress] = useState<number | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savedNote, setSavedNote] = useState<string | null>(null)
-  const pattern = toAdoPattern(linkInput)
-  const converted = !!linkInput.trim() && !linkInput.includes('{id}') && pattern.includes('{id}')
-  const patternInvalid = !!linkInput.trim() && !pattern.includes('{id}')
 
-  useEffect(() => { if (open) { setLinkInput(room?.adoPattern ?? ''); setError(null); setSavedNote(null) } }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Every time the dialog opens it starts clean: empty rows, no old links or text.
+  useEffect(() => {
+    if (!open) return
+    setRows(Array.from({ length: BLANK_ROWS }, blank)); setRaw(''); setPreview(null); setBulkOpen(false)
+    setError(null); setSavedNote(null); setTo(defaultTo)
+  }, [open, defaultTo])
+
+  const pattern = useMemo(() => learnPattern(rows, room?.adoPattern ?? ''), [rows, room?.adoPattern])
+  const ready = rows.filter((r) => r.number.trim() && r.title.trim())
+  const incomplete = rows.filter((r) => hasContent(r) && !(r.number.trim() && r.title.trim())).length
+
+  const setRow = (i: number, p: Partial<Row>) => setRows((rs) => {
+    const next = rs.map((x, j) => (j === i ? { ...x, ...p } : x))
+    if (i === next.length - 1 && hasContent(next[i])) next.push(blank()) // typing in the last row opens another
+    return next
+  })
+  /** Put parsed stories into the table, filling empty rows first. */
+  const addParsed = (parsed: ParsedStory[]) => setRows((rs) => {
+    const kept = rs.filter(hasContent)
+    const merged = [...kept, ...parsed.filter((p) => !kept.some((k) => k.number === p.number)).map((p) => ({ number: p.number, title: p.title, url: p.url ?? '' }))]
+    return [...merged, blank()]
+  })
 
   const handleImage = async (file: Blob) => {
     setPreview(URL.createObjectURL(file)); setProgress(0); setError(null)
-    try { const text = await readImage(file, setProgress); setRaw(text); setRows(parseStories(text)) }
+    try { const text = await readImage(file, setProgress); setRaw(text); addParsed(parseStories(text)) }
     catch (e: any) { setError('Could not read the screenshot: ' + (e?.message ?? e)) }
     setProgress(null)
   }
-  // Paste a screenshot straight from the clipboard (Ctrl+V / Cmd+V) while the dialog is open.
   useEffect(() => {
     if (!open) return
     const onPaste = (e: ClipboardEvent) => {
       const img = [...(e.clipboardData?.items ?? [])].find((i) => i.type.startsWith('image/'))?.getAsFile()
-      if (img) { e.preventDefault(); handleImage(img) }
+      if (img) { e.preventDefault(); setBulkOpen(true); handleImage(img) }
     }
     window.addEventListener('paste', onPaste); return () => window.removeEventListener('paste', onPaste)
   }, [open])
 
-  const setRow = (i: number, p: Partial<ParsedStory>) => setRows((r) => r.map((x, j) => (j === i ? { ...x, ...p } : x)))
-  const clean = rows.filter((r) => r.number.trim() && r.title.trim())
-
   const save = async () => {
     setSaving(true); setError(null)
     try {
-      if (pattern !== (room?.adoPattern ?? '') && !patternInvalid) await actions.setAdoPattern(pattern)
-      if (clean.length) await actions.addStories(clean.map((r) => ({ ...r, url: linkFor(r, pattern) })), pattern)
-      // Only clear the form once everything is saved.
-      setSavedNote(clean.length ? `Added ${clean.length} ${clean.length === 1 ? 'story' : 'stories'}.` : 'Link saved.')
-      setRows([]); setRaw(''); setPreview(null)
-      setTimeout(onClose, 700)
+      if (pattern && pattern !== (room?.adoPattern ?? '')) await actions.setAdoPattern(pattern)
+      await actions.addStories(ready.map((r) => ({ number: r.number.trim(), title: r.title.trim(), url: r.url.trim() || buildAdoUrl(pattern, r.number.trim()) })), pattern, to)
+      setSavedNote(`Added ${ready.length} ${ready.length === 1 ? 'story' : 'stories'} to ${to === 'backlog' ? 'the backlog' : 'this session'}.`)
+      setRows(Array.from({ length: BLANK_ROWS }, blank)); setRaw(''); setPreview(null)
+      setTimeout(onClose, 800)
     } catch (e: any) {
-      setError(`Couldn't save: ${e?.message ?? e}. Your text is still here, so you can try again.`)
+      setError(`Couldn't save: ${e?.message ?? e}. Your stories are still here, so you can try again.`)
     } finally { setSaving(false) }
   }
 
@@ -67,70 +94,71 @@ export function LoadStories({ api, open, onClose }: { api: RoomApi; open: boolea
       <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>Add stories</DialogTitle>
-          <DialogDescription>Drop in a screenshot of the ADO board or paste a list. Screenshots are read on this computer and never uploaded.</DialogDescription>
+          <DialogDescription>Type each story's number and title. Paste one story's ADO link and the rest fill in automatically.</DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-1.5">
-          <Label htmlFor="ado">ADO link (optional)</Label>
-          <Input id="ado" className="font-mono text-sm" placeholder="Paste any story link from ADO, e.g. https://dev.azure.com/org/project/_workitems/edit/48213" value={linkInput} onChange={(e) => setLinkInput(e.target.value)} />
-          {converted && <p className="text-xs text-emerald-700">Got it. Each story will link to <span className="font-mono">{buildAdoUrl(pattern, '12345')}</span> with its own number.</p>}
-          {patternInvalid && <p className="text-xs text-amber-700">That link has no story number in it. Paste a link to one story, or add a link per story in the table below.</p>}
-          {!linkInput.trim() && <p className="text-xs text-muted-foreground">Paste one story's link and every story gets its own link automatically. You can also set a link per story in the table.</p>}
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <label className="flex min-h-40 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground transition-colors hover:bg-secondary/50"
-            onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleImage(f) }}>
-            <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleImage(e.target.files[0])} />
-            {preview ? <img src={preview} className="max-h-36 rounded-md" /> : <><ImageUp className="h-8 w-8" /><span>Drop a screenshot, click to choose,<br />or press <kbd className="rounded border bg-muted px-1 font-mono text-xs">Ctrl V</kbd></span></>}
-            {progress != null && <span className="flex items-center gap-2 text-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Reading… {Math.round(progress * 100)}%</span>}
-          </label>
-          <div className="grid gap-1.5">
-            <Label htmlFor="raw">Or type / paste stories (one per line)</Label>
-            <Textarea id="raw" className="h-36 font-mono text-xs" placeholder={'48213 Export invoices to CSV\n48214 Add vendor search https://dev.azure.com/…/48214'} value={raw} onChange={(e) => { setRaw(e.target.value); setRows(parseStories(e.target.value)) }} />
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Add to:</span>
+          <div className="inline-flex rounded-md border p-0.5">
+            {(['backlog', 'session'] as const).map((k) => (
+              <button key={k} type="button" onClick={() => setTo(k)}
+                className={cn('rounded px-3 py-1 text-sm transition-colors', to === k ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}>
+                {k === 'backlog' ? 'Backlog' : 'This session'}
+              </button>
+            ))}
           </div>
+          <span className="text-xs text-muted-foreground">{to === 'backlog' ? 'Pick them for a session later.' : 'Ready to vote on now.'}</span>
         </div>
 
         <div className="rounded-md border">
-          <Table>
-            <TableHeader><TableRow><TableHead className="w-28">Story #</TableHead><TableHead>Title</TableHead><TableHead className="w-72">ADO link</TableHead><TableHead className="w-10" /></TableRow></TableHeader>
-            <TableBody>
-              {rows.map((r, i) => (
-                <TableRow key={i}>
-                  <TableCell><Input className="h-8 font-mono" value={r.number} onChange={(e) => setRow(i, { number: e.target.value.replace(/\D/g, '') })} /></TableCell>
-                  <TableCell><Input className="h-8" value={r.title} onChange={(e) => setRow(i, { title: e.target.value })} /></TableCell>
-                  <TableCell><Input className="h-8 font-mono text-xs" placeholder={buildAdoUrl(pattern, r.number) || 'Paste link (optional)'} value={r.url ?? ''} onChange={(e) => setRow(i, { url: e.target.value })} /></TableCell>
-                  <TableCell><Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Remove row" onClick={() => setRows((x) => x.filter((_, j) => j !== i))}><Trash2 /></Button></TableCell>
-                </TableRow>
-              ))}
-              {rows.length === 0 && <TableRow><TableCell colSpan={4} className="h-14 text-center text-muted-foreground">No stories yet. Add a screenshot, paste a list, or click “Add row”.</TableCell></TableRow>}
-            </TableBody>
-          </Table>
-        </div>
-        <Button variant="outline" size="sm" className="w-fit" onClick={() => setRows((r) => [...r, { number: '', title: '' }])}><Plus /> Add row</Button>
-
-        {lineup.length > 0 && (
-          <details className="text-sm"><summary className="cursor-pointer text-muted-foreground">Stories already on the board ({lineup.length}): fix links or remove</summary>
-            <div className="mt-2 grid gap-1.5">{lineup.map((s) => (
-              <div key={s.id} className="flex items-center gap-2">
-                <span className="w-20 shrink-0 font-mono text-xs text-muted-foreground">#{s.number}</span>
-                <span className="w-56 shrink-0 truncate" title={s.title}>{s.title}</span>
-                <Input className="h-8 flex-1 font-mono text-xs" placeholder="ADO link" defaultValue={s.url}
-                  onBlur={(e) => { const url = e.target.value.trim(); if (url !== s.url) actions.editStory({ ...s, url }) }} />
-                <Button variant="ghost" size="sm" onClick={() => actions.removeStory(s.id)}><Trash2 /> Remove</Button>
+          <div className="grid grid-cols-[7rem_1fr_minmax(0,18rem)_2.25rem] gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
+            <span>Story #</span><span>Title</span><span>ADO link</span><span />
+          </div>
+          <div className="max-h-[42vh] overflow-y-auto p-2 grid gap-1.5">
+            {rows.map((r, i) => (
+              <div key={i} className="grid grid-cols-[7rem_1fr_minmax(0,18rem)_2.25rem] items-center gap-2">
+                <Input className="h-8 font-mono" placeholder="e.g. 48213" inputMode="numeric" value={r.number} onChange={(e) => setRow(i, { number: e.target.value.replace(/\D/g, '') })} aria-label={`Story number, row ${i + 1}`} />
+                <Input className="h-8" placeholder={i === 0 ? 'Story title' : ''} value={r.title} onChange={(e) => setRow(i, { title: e.target.value })} aria-label={`Title, row ${i + 1}`} />
+                <Input className="h-8 font-mono text-xs" placeholder={r.number && pattern ? buildAdoUrl(pattern, r.number) : 'Paste link (optional)'} value={r.url} onChange={(e) => setRow(i, { url: e.target.value })} aria-label={`ADO link, row ${i + 1}`} />
+                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Remove row" onClick={() => setRows((x) => (x.length > 1 ? x.filter((_, j) => j !== i) : [blank()]))}><Trash2 /></Button>
               </div>
-            ))}</div>
-          </details>
-        )}
+            ))}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="outline" size="sm" onClick={() => setRows((r) => [...r, blank()])}><Plus /> Add row</Button>
+          {pattern && <span className="text-xs text-muted-foreground">Rows without a link will use <span className="font-mono">{buildAdoUrl(pattern, '{#}')}</span></span>}
+        </div>
+
+        <div className="rounded-md border">
+          <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium" onClick={() => setBulkOpen((v) => !v)}>
+            <ChevronDown className={cn('h-4 w-4 transition-transform', !bulkOpen && '-rotate-90')} /> Bulk import: paste a list or a screenshot of the ADO backlog
+          </button>
+          {bulkOpen && (
+            <div className="grid grid-cols-2 gap-4 border-t p-3">
+              <label className="flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground transition-colors hover:bg-secondary/50"
+                onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleImage(f) }}>
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleImage(e.target.files[0])} />
+                {preview ? <img src={preview} className="max-h-32 rounded-md" /> : <><ImageUp className="h-7 w-7" /><span>Drop a screenshot, click to choose, or press <kbd className="rounded border bg-muted px-1 font-mono text-xs">Ctrl V</kbd><br /><span className="text-xs">Read on this computer, never uploaded.</span></span></>}
+                {progress != null && <span className="flex items-center gap-2 text-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Reading… {Math.round(progress * 100)}%</span>}
+              </label>
+              <div className="grid gap-2">
+                <Textarea className="h-28 font-mono text-xs" placeholder={'One story per line:\n48213 Export invoices to CSV\n48214 Add vendor search'} value={raw} onChange={(e) => setRaw(e.target.value)} aria-label="Paste stories" />
+                <Button variant="secondary" size="sm" disabled={!raw.trim()} onClick={() => { addParsed(parseStories(raw)); setRaw('') }}>Put these in the table</Button>
+              </div>
+            </div>
+          )}
+        </div>
 
         {error && <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</div>}
         {savedNote && <div className="flex items-center gap-2 text-sm text-emerald-700"><Check className="h-4 w-4" />{savedNote}</div>}
 
-        <DialogFooter>
+        <DialogFooter className="items-center gap-2">
+          {incomplete > 0 && <span className="mr-auto text-xs text-amber-700">{incomplete} {incomplete === 1 ? 'row needs' : 'rows need'} both a number and a title.</span>}
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={save} disabled={saving || (!clean.length && (patternInvalid || pattern === (room?.adoPattern ?? '')))}>
+          <Button onClick={save} disabled={saving || ready.length === 0}>
             {saving && <Loader2 className="animate-spin" />}
-            {clean.length ? `Add ${clean.length} ${clean.length === 1 ? 'story' : 'stories'}` : 'Save link'}
+            {ready.length ? `Add ${ready.length} ${ready.length === 1 ? 'story' : 'stories'} to ${to === 'backlog' ? 'backlog' : 'this session'}` : 'Add stories'}
           </Button>
         </DialogFooter>
       </DialogContent>

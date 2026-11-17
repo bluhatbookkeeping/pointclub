@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Camera, Clapperboard, Crown, ExternalLink, FolderOpen, Link2, RotateCcw, Volume2, VolumeX, UserRound, Eye, Check, Circle, MessageSquare, MessageSquareOff, ArrowRight, SkipForward, ListChecks, Undo2 } from 'lucide-react'
+import { Camera, Clapperboard, Crown, ExternalLink, FolderOpen, Link2, RotateCcw, Volume2, VolumeX, UserRound, Eye, Check, Circle, MessageSquare, MessageSquareOff, ArrowRight, SkipForward, ListChecks, Undo2, Plus, Trash2, Mail } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
 import { PokerTable } from '@/components/PokerTable'
 import { TicketCard, label } from '@/components/TicketCard'
 import { Celebration, Countdown, Verdict } from '@/components/RevealFx'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Throws } from '@/components/Throws'
 import { Logo } from '@/components/Logo'
 import { Button } from '@/components/ui/button'
@@ -21,7 +22,7 @@ import { CAST, castById } from '@/lib/cast'
 import { setVoicesEnabled, voice, voicesEnabled } from '@/lib/voice'
 import { blockbusterBurst, clearFx, sparkleBurst } from '@/lib/fx'
 import { isMuted, setMuted, sfx } from '@/lib/sounds'
-import { cn } from '@/lib/utils'
+import { cn, sessionName } from '@/lib/utils'
 import { DECK, NUMERIC, Outcome } from '@/lib/types'
 import { isOpen, type RoomApi } from '@/lib/useRoom'
 
@@ -32,7 +33,7 @@ function IconBtn({ tip, children, ...p }: React.ComponentProps<typeof Button> & 
 }
 
 export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: () => void; onLobby: () => void }) {
-  const { room, members, me, current, lineup, roundVotes, myVote, isHost, result, actions, activeSprint, sprints, mode } = api
+  const { room, members, me, current, lineup, backlog, roundVotes, myVote, isHost, result, actions, activeSprint, sprints, mode } = api
   const here = members.filter((m) => m.status === 'here').sort((a, b) => a.name.localeCompare(b.name))
   const away = members.filter((m) => m.status === 'away')
   const [phase, setPhase] = useState<Phase>(room?.revealed ? 'shown' : 'voting')
@@ -40,6 +41,10 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
   const [muted, setMute] = useState(isMuted())
   const [voices, setVoices] = useState(voicesEnabled())
   const [showLoad, setShowLoad] = useState(false)
+  const [loadTo, setLoadTo] = useState<'backlog' | 'session'>('backlog')
+  const [tab, setTab] = useState<'session' | 'backlog'>('session')
+  const [picked, setPicked] = useState<string[]>([])
+  const [invite, setInvite] = useState<string | null>(null)
   const [showNewSprint, setShowNewSprint] = useState(false)
   const [creditsFor, setCreditsFor] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -57,7 +62,7 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
 
   useEffect(() => { voice.preload(CAST.map((c) => c.id)) }, [])
 
-  // A crew member's voice line plays on every screen when they put down a card (not on first load).
+  // A teammate's voice line plays on every screen when they put down a card (not on first load).
   const seenVotes = useRef<{ key: string; ids: Set<string> } | null>(null)
   useEffect(() => {
     const ids = new Set(roundVotes.map((v) => v.id))
@@ -122,6 +127,26 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
     if (wasDone.current === false && allDone) { setCelebrate(true); voice.done(); blockbusterBurst() }
     wasDone.current = allDone
   }, [allDone])
+  const roomLink = () => { const u = new URL(location.href); u.searchParams.delete('p'); u.searchParams.delete('agenda'); return u.toString() }
+  /** Ready-to-send invite: the session's stories with ADO links, plus the join and agenda links. */
+  const inviteEmail = () => {
+    const agenda = new URL(roomLink()); agenda.searchParams.set('agenda', '1')
+    const list = lineup.filter((s) => !s.points)
+    return [
+      'Hi team,',
+      '',
+      `Here are the stories we'll point in our next session${activeSprint ? ` (${sessionName(activeSprint.name)})` : ''}:`,
+      '',
+      ...(list.length ? list.map((s, i) => `${i + 1}. #${s.number} ${s.title}${s.url ? `\n   ${s.url}` : ''}${s.note ? `\n   Note: ${s.note}` : ''}`) : ['(No stories picked yet.)']),
+      '',
+      'Please read through them before the meeting.',
+      '',
+      `Join the pointing session: ${roomLink()}`,
+      `Story list only: ${agenda.toString()}`,
+      '',
+      'Thanks!',
+    ].join('\n')
+  }
   const copyAgenda = () => {
     const u = new URL(location.href); u.searchParams.delete('p'); u.searchParams.set('agenda', '1')
     navigator.clipboard?.writeText(u.toString()).then(() => { setAgendaCopied(true); setTimeout(() => setAgendaCopied(false), 1800) })
@@ -137,18 +162,32 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
           <Logo />
           <Separator orientation="vertical" className="h-5" />
           <div className="flex min-w-0 items-center gap-2 text-sm">
-            <span className="font-medium">{activeSprint?.name}</span>
+            <span className="font-medium">{sessionName(activeSprint?.name)}</span>
             {activeSprint?.title && <span className="hidden truncate text-muted-foreground 2xl:inline">{activeSprint.title}</span>}
             <Badge variant="secondary" className="whitespace-nowrap">{pointedCount}/{lineup.length} pointed · {totalPts} pts</Badge>
             {mode === 'local' && <Tooltip><TooltipTrigger asChild><Badge variant="destructive" className="whitespace-nowrap">Demo mode</Badge></TooltipTrigger><TooltipContent className="max-w-xs whitespace-normal">Team mode is off, so only tabs in this browser share the room. On Vercel, set VITE_BACKEND = api and redeploy.</TooltipContent></Tooltip>}
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
-            {isHost && <Button variant="outline" size="sm" onClick={() => setShowLoad(true)} title="Add stories"><Camera /><span className="hidden lg:inline">Add stories</span></Button>}
-            {isHost && <Button variant="outline" size="sm" onClick={() => setShowNewSprint(true)} title="Wrap the sprint"><Clapperboard /><span className="hidden lg:inline">Wrap sprint</span></Button>}
-            {isHost && <Button variant="ghost" size="sm" onClick={copyAgenda} title="Copy a read-only link to this sprint's story list to send before the meeting">{agendaCopied ? <Check /> : <ListChecks />}<span className="hidden lg:inline">{agendaCopied ? 'Agenda link copied' : 'Share agenda'}</span></Button>}
-            <Button variant="ghost" size="sm" onClick={openVault} title="Case Files (sprint history)"><FolderOpen /><span className="hidden lg:inline">Case Files</span></Button>
+            {isHost && <Button variant="outline" size="sm" onClick={() => { setLoadTo("backlog"); setShowLoad(true) }} title="Add stories"><Camera /><span className="hidden lg:inline">Add stories</span></Button>}
+            {isHost && <Button variant="outline" size="sm" onClick={() => setShowNewSprint(true)} title="Finish this session and save it to Past stories"><Clapperboard /><span className="hidden lg:inline">Finish session</span></Button>}
+            {isHost && (
+              <Popover onOpenChange={(o) => o && setInvite(inviteEmail())}>
+                <PopoverTrigger asChild><Button variant="ghost" size="sm" title="Copy an email inviting the team, with this session's stories and links"><Mail /><span className="hidden lg:inline">Invite team</span></Button></PopoverTrigger>
+                <PopoverContent align="end" className="w-[30rem] grid gap-2">
+                  <div className="text-sm font-medium">Invite the team</div>
+                  <p className="text-xs text-muted-foreground">Copy this into an email or chat. It lists this session's stories with links, plus the join link.</p>
+                  <Textarea readOnly className="h-56 font-mono text-xs" value={invite ?? ''} onFocus={(e) => e.currentTarget.select()} />
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" onClick={() => navigator.clipboard?.writeText(invite ?? '').then(() => { setAgendaCopied(true); setTimeout(() => setAgendaCopied(false), 1800) })}>{agendaCopied ? <Check /> : <Mail />} {agendaCopied ? 'Copied' : 'Copy email text'}</Button>
+                    <Button size="sm" variant="outline" asChild><a href={`mailto:?subject=${encodeURIComponent(`Story pointing: ${sessionName(activeSprint?.name) || 'this week'}`)}&body=${encodeURIComponent(invite ?? '')}`}>Open in email app</a></Button>
+                    <Button size="sm" variant="ghost" onClick={copyAgenda}><ListChecks /> Copy agenda link</Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+            <Button variant="ghost" size="sm" onClick={openVault} title="Past stories (every session's stories and votes)"><FolderOpen /><span className="hidden lg:inline">Past stories</span></Button>
             <IconBtn tip={copied ? 'Copied!' : 'Copy room link'} onClick={copyLink}>{copied ? <Check /> : <Link2 />}</IconBtn>
-            <IconBtn tip={voices ? 'Turn crew voices off' : 'Turn crew voices on'} onClick={() => { setVoicesEnabled(!voices); setVoices(!voices) }}>{voices ? <MessageSquare /> : <MessageSquareOff />}</IconBtn>
+            <IconBtn tip={voices ? 'Turn voice lines off' : 'Turn voice lines on'} onClick={() => { setVoicesEnabled(!voices); setVoices(!voices) }}>{voices ? <MessageSquare /> : <MessageSquareOff />}</IconBtn>
             <IconBtn tip={muted ? 'Unmute' : 'Mute'} onClick={() => { setMuted(!muted); setMute(!muted) }}>{muted ? <VolumeX /> : <Volume2 />}</IconBtn>
             <IconBtn tip="My seat (lobby)" onClick={onLobby}>{me ? <Avatar character={me.character} name={me.name} size={26} /> : <UserRound />}</IconBtn>
           </div>
@@ -159,12 +198,41 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
         {/* Sidebar */}
         <aside className="w-64 shrink-0 border-r">
           <div className="sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto overflow-x-hidden p-3">
-            <div className="label px-2 mb-2">Stories</div>
-            {lineup.length === 0 && <p className="text-sm text-muted-foreground px-2">No stories yet. {isHost ? 'Click “Add stories” to add them from a screenshot or a list.' : 'Waiting for the host.'}</p>}
+            <div className="mb-2 grid grid-cols-2 rounded-md border p-0.5 text-sm">
+              {(['session', 'backlog'] as const).map((k) => (
+                <button key={k} onClick={() => setTab(k)} className={cn('rounded px-2 py-1 transition-colors', tab === k ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}>
+                  {k === 'session' ? `Session (${lineup.length})` : `Backlog (${backlog.length})`}
+                </button>
+              ))}
+            </div>
+            {tab === 'backlog' ? (
+              <div className="grid gap-1">
+                {backlog.length === 0 && <p className="px-2 text-sm text-muted-foreground">The backlog is empty. {isHost ? 'Add stories here ahead of time, then pick the ones for each session.' : ''}</p>}
+                {backlog.map((s) => (
+                  <label key={s.id} className={cn('flex items-start gap-2 rounded-md px-2 py-1.5 text-sm', isHost && 'cursor-pointer hover:bg-secondary/60')} title={s.note || s.title}>
+                    {isHost && <input type="checkbox" className="mt-1 h-4 w-4 accent-[hsl(var(--primary))]" checked={picked.includes(s.id)}
+                      onChange={(e) => setPicked((p) => (e.target.checked ? [...p, s.id] : p.filter((x) => x !== s.id)))} aria-label={`Pick #${s.number}`} />}
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-mono text-xs text-muted-foreground">#{s.number}</span>
+                      <span className="block line-clamp-2 break-words leading-snug">{s.title}</span>
+                      {s.note && <span className="block text-xs text-amber-800 line-clamp-1">{s.note}</span>}
+                    </span>
+                    {isHost && <button className="mt-0.5 text-muted-foreground/60 hover:text-destructive" title="Delete from backlog" onClick={(e) => { e.preventDefault(); if (confirm(`Delete #${s.number} from the backlog?`)) actions.removeStory(s.id) }}><Trash2 className="h-3.5 w-3.5" /></button>}
+                  </label>
+                ))}
+                {isHost && <div className="sticky bottom-0 mt-2 grid gap-1.5 bg-background pt-2">
+                  <Button size="sm" disabled={!picked.length} onClick={async () => { await actions.moveToSession(picked); setPicked([]); setTab('session') }}>
+                    Add {picked.length || ''} to this session <ArrowRight />
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => { setLoadTo('backlog'); setShowLoad(true) }}><Plus /> Add stories to backlog</Button>
+                </div>}
+              </div>
+            ) : <>
+            {lineup.length === 0 && <p className="text-sm text-muted-foreground px-2">No stories in this session yet. {isHost ? (backlog.length ? 'Pick some from the Backlog tab.' : 'Click “Add stories” to start.') : 'Waiting for the host.'}</p>}
             <nav className="grid gap-0.5">
               {lineup.map((s) => (
                 <button key={s.id} onClick={() => isHost && actions.selectStory(s.id)} disabled={!isHost}
-                  title={s.points ? `Done: ${s.points} points. Click to view or revote.` : s.skipped ? `Skipped, moves to next sprint${s.note ? `: ${s.note}` : ''}` : s.note || undefined}
+                  title={s.points ? `Done: ${s.points} points. Click to view or revote.` : s.skipped ? `Skipped, goes back to the backlog${s.note ? `: ${s.note}` : ''}` : s.note || undefined}
                   className={cn('group flex items-start gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors disabled:cursor-default',
                     s.id === current?.id ? 'bg-secondary font-medium' : 'hover:bg-secondary/60 text-muted-foreground',
                     (s.points || s.skipped) && s.id !== current?.id && 'opacity-55')}>
@@ -177,9 +245,12 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
                   </span>
                   {s.points && <Badge variant="secondary" className="font-mono">{label(s.points)}</Badge>}
                   {s.skipped && !s.points && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">Skipped</Badge>}
+                  {isHost && !s.points && <span role="button" tabIndex={0} title="Move back to backlog" className="mt-0.5 hidden text-muted-foreground/60 hover:text-foreground group-hover:inline"
+                    onClick={(e) => { e.stopPropagation(); actions.moveToBacklog(s.id) }}><Undo2 className="h-3.5 w-3.5" /></span>}
                 </button>
               ))}
             </nav>
+            </>}
             {away.length > 0 && <>
               <Separator className="my-4" />
               <div className="label px-2 mb-2">Away</div>
@@ -201,19 +272,30 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
                   {current.note && <p className="mt-1 text-sm text-amber-800">Note: {current.note}</p>}
                 </div>
                 {current.url ? <Button variant="outline" className="shrink-0" onClick={openAdo}>Open in ADO <ExternalLink /></Button>
-                  : isHost ? <Button variant="ghost" size="sm" className="shrink-0 text-muted-foreground" onClick={() => setShowLoad(true)}>Add ADO link</Button> : null}
+                  : isHost ? (
+                    <Popover>
+                      <PopoverTrigger asChild><Button variant="ghost" size="sm" className="shrink-0 text-muted-foreground">Add ADO link</Button></PopoverTrigger>
+                      <PopoverContent align="end" className="w-96">
+                        <form className="grid gap-2" onSubmit={(e) => { e.preventDefault(); const url = String(new FormData(e.currentTarget).get('url') ?? '').trim(); if (url) actions.editStory({ ...current, url }) }}>
+                          <div className="text-sm font-medium">ADO link for #{current.number}</div>
+                          <Input name="url" autoFocus placeholder="Paste the story's link from ADO" />
+                          <Button type="submit" size="sm">Save link</Button>
+                        </form>
+                      </PopoverContent>
+                    </Popover>
+                  ) : null}
               </> : allDone ? (
                 <div className="flex flex-1 flex-wrap items-center gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="label text-emerald-700">All stories done</div>
                     <div className="mt-1 text-2xl font-semibold tracking-tight">{pointedCount} pointed · {totalPts} points</div>
-                    {skippedCount > 0 && <div className="text-sm text-amber-800">{skippedCount} skipped · moves to next sprint when you wrap</div>}
+                    {skippedCount > 0 && <div className="text-sm text-amber-800">{skippedCount} skipped · goes back to the backlog</div>}
                   </div>
-                  {isHost && <Button variant="outline" onClick={() => setShowLoad(true)}><Camera /> Add more stories</Button>}
-                  {isHost && <Button onClick={() => setShowNewSprint(true)}><Clapperboard /> Wrap sprint</Button>}
+                  {isHost && <Button variant="outline" onClick={() => (backlog.length ? setTab("backlog") : (setLoadTo("session"), setShowLoad(true)))}><Camera /> Add more stories</Button>}
+                  {isHost && <Button onClick={() => setShowNewSprint(true)}><Clapperboard /> Finish session</Button>}
                 </div>
-              ) : <div className="flex flex-1 items-center gap-4"><span className="flex-1 text-muted-foreground">{lineup.length ? 'Pick a story on the left to start.' : isHost ? 'No stories yet. Add some to start.' : 'Waiting for the host…'}</span>
-                  {isHost && !lineup.length && <Button onClick={() => setShowLoad(true)}><Camera /> Add stories</Button>}
+              ) : <div className="flex flex-1 items-center gap-4"><span className="flex-1 text-muted-foreground">{lineup.length ? 'Pick a story on the left to start.' : isHost ? (backlog.length ? 'Pick stories from the backlog to start.' : 'No stories yet. Add some to start.') : 'Waiting for the host…'}</span>
+                  {isHost && !lineup.length && (backlog.length ? <Button onClick={() => setTab("backlog")}>Pick from backlog <ArrowRight /></Button> : <Button onClick={() => { setLoadTo("session"); setShowLoad(true) }}><Camera /> Add stories</Button>)}
                   {isHost && lineup.length > 0 && nextUnpointed && <Button onClick={() => actions.selectStory(nextUnpointed.id)}>Start with #{nextUnpointed.number} <ArrowRight /></Button>}
                 </div>}
             </CardContent>
@@ -232,7 +314,7 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
               </>,
             }
           })} />
-          {room && !hostHere && <div className="text-center"><Button variant="outline" size="sm" onClick={actions.claimHost}><Crown /> No host right now. Run this job</Button></div>}
+          {room && !hostHere && <div className="text-center"><Button variant="outline" size="sm" onClick={actions.claimHost}><Crown /> No host right now. Be the host</Button></div>}
 
           {/* Results + host controls */}
           {current && current.points && !room?.revealed && (
@@ -244,9 +326,9 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
             </div>
           )}
           {current && current.skipped && !current.points && (
-            // Parked for next sprint: show why, and let the host bring it back now.
+            // Skipped this session: show why, and let the host bring it back now.
             <div className="flex flex-wrap items-center justify-center gap-3">
-              <Badge variant="outline" className="border-amber-300 bg-amber-50 px-3 py-1 text-sm text-amber-800"><SkipForward className="mr-1 h-4 w-4" /> Skipped · moves to next sprint</Badge>
+              <Badge variant="outline" className="border-amber-300 bg-amber-50 px-3 py-1 text-sm text-amber-800"><SkipForward className="mr-1 h-4 w-4" /> Skipped · goes back to the backlog</Badge>
               {isHost && <Button variant="outline" size="sm" onClick={actions.unskipStory}><Undo2 /> Point it now</Button>}
               {isHost && nextUnpointed && <Button size="sm" onClick={() => actions.selectStory(nextUnpointed.id)}>Next story <ArrowRight /></Button>}
             </div>
@@ -261,7 +343,7 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
                     <PopoverContent className="w-80">
                       <form className="grid gap-2" onSubmit={(e) => { e.preventDefault(); actions.skipStory(skipNote) }}>
                         <div className="text-sm font-medium">Skip this story for now?</div>
-                        <p className="text-xs text-muted-foreground">It moves to next sprint's list when you wrap. Add a note so you remember why.</p>
+                        <p className="text-xs text-muted-foreground">When you finish the session it goes back to the backlog with this note.</p>
                         <Input autoFocus placeholder="e.g. Waiting on API details from Sam" value={skipNote} onChange={(e) => setSkipNote(e.target.value)} maxLength={300} />
                         <Button type="submit" size="sm">Skip &amp; next story <ArrowRight /></Button>
                       </form>
@@ -300,7 +382,7 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
       <AnimatePresence>{phase === 'countdown' && <Countdown onDone={finishCountdown} />}</AnimatePresence>
       <AnimatePresence>{verdict && verdict !== 'none' && <Verdict outcome={verdict} points={result?.suggested ?? ''} />}</AnimatePresence>
       <AnimatePresence>{celebrate && <Celebration points={totalPts} stories={pointedCount} skipped={skippedCount} onClose={() => setCelebrate(false)} />}</AnimatePresence>
-      <LoadStories api={api} open={showLoad} onClose={() => setShowLoad(false)} />
+      <LoadStories api={api} open={showLoad} defaultTo={loadTo} onClose={() => setShowLoad(false)} />
       <NewSprint api={api} open={showNewSprint} onClose={() => setShowNewSprint(false)} />
       {creditsFor && <Credits api={api} sprint={sprints.find((s) => s.id === creditsFor)!} onClose={() => setCreditsFor(null)} />}
     </div>
@@ -314,7 +396,7 @@ function Results({ result }: { result: NonNullable<RoomApi['result']> }) {
     <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.6 }}>
       <Card className="bg-background/95"><CardContent className="px-5 py-3 flex items-end gap-6">
         <div><div className="label">Average</div><div className="text-2xl font-semibold tabular-nums">{result.average ?? '–'}</div></div>
-        <div><div className="label">Crew pick</div><div className="text-2xl font-semibold text-accent tabular-nums">{result.suggested ?? '–'}</div></div>
+        <div><div className="label">Most votes</div><div className="text-2xl font-semibold text-accent tabular-nums">{result.suggested ?? '–'}</div></div>
         <Separator orientation="vertical" className="h-12" />
         <div className="flex items-end gap-2 h-14">
           {entries.map((v) => (

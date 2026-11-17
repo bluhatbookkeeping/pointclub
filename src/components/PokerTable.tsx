@@ -43,7 +43,7 @@ export function PokerTable({ seats, faceUp, votesIn, center }: { seats: SeatInfo
           <div className="absolute rounded-full border-2 border-[#d4af37]/50" style={{ inset: '16% 11%' }} />
           {center ? <div className="relative z-[5]">{center}</div> : <div className="text-center pointer-events-none">
             <div className="font-display text-[clamp(18px,3vw,38px)] font-semibold tracking-[0.35em] text-[#d4af37]/35">POINT CLUB</div>
-            <div className="text-[clamp(8px,0.9vw,11px)] tracking-[0.5em] text-[#d4af37]/30 uppercase">Est. Sprint 1 · Las Vegas</div>
+            <div className="text-[clamp(8px,0.9vw,11px)] tracking-[0.5em] text-[#d4af37]/30 uppercase">Story pointing · Las Vegas</div>
             <div className="mt-2 flex h-9 justify-center">{votesIn > 0 && !faceUp && <ChipPot count={votesIn} />}</div>
           </div>}
         </div>
@@ -76,7 +76,6 @@ export function PokerTable({ seats, faceUp, votesIn, center }: { seats: SeatInfo
             {s.menu ? <Popover><PopoverTrigger asChild>{seat}</PopoverTrigger><PopoverContent className="w-auto p-1.5 flex items-center gap-1">{s.menu}</PopoverContent></Popover> : seat}
             <div className="rounded-md border bg-background/95 px-2 py-0.5 text-center shadow-sm leading-tight">
               <div className="text-xs font-semibold whitespace-nowrap">{s.member.name}{s.isMe ? ' (you)' : ''}</div>
-              <div className="text-[10px] whitespace-nowrap" style={{ color: c.color }}>{c.name}</div>
             </div>
             {s.spotlight && <Badge variant="destructive" className="uppercase tracking-wider text-[10px]">Explain your vote</Badge>}
           </div>

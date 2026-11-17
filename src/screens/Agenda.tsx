@@ -4,9 +4,10 @@ import { label } from '@/components/TicketCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { sessionName } from '@/lib/utils'
 import type { RoomApi } from '@/lib/useRoom'
 
-/** Read-only story list for the upcoming sprint: share it before the meeting instead of an email. */
+/** Read-only story list for the upcoming session: share it before the meeting instead of an email. */
 export function Agenda({ api }: { api: RoomApi }) {
   const { activeSprint, lineup } = api
   const joinUrl = () => { const u = new URL(location.href); u.searchParams.delete('agenda'); return u.toString() }
@@ -22,8 +23,8 @@ export function Agenda({ api }: { api: RoomApi }) {
       <div className="mx-auto max-w-4xl p-6">
         <Card>
           <CardHeader>
-            <CardDescription>Sprint planning agenda</CardDescription>
-            <CardTitle className="text-2xl">{activeSprint?.name}{activeSprint?.title ? ` · ${activeSprint.title}` : ''}</CardTitle>
+            <CardDescription>Story pointing agenda</CardDescription>
+            <CardTitle className="text-2xl">{sessionName(activeSprint?.name)}</CardTitle>
             <CardDescription>
               {lineup.length} {lineup.length === 1 ? 'story' : 'stories'} to point
               {pointed.length > 0 && ` · ${pointed.length} done so far`}. Read through them before the meeting. Links open in ADO (needs VPN).
