@@ -84,11 +84,12 @@ export function useRoom(roomId: string) {
   const isDealer = isHost && !room?.hostVotes
   const result = room?.revealed ? judge(roundVotes.map((v) => v.value)) : null
 
-  // Heartbeat so others can see who is in the room right now.
+  // Heartbeat so others can see who has the table open right now (a seat shows only while it beats).
   useEffect(() => {
     if (!me || me.status !== 'here') return
     const beat = () => db.upsertMember({ ...me, lastSeen: Date.now() })
-    const t = setInterval(beat, 45_000)
+    beat()
+    const t = setInterval(beat, 30_000)
     return () => clearInterval(t)
   }, [db, me?.id, me?.status]) // eslint-disable-line react-hooks/exhaustive-deps
 

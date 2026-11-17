@@ -34,7 +34,14 @@ function IconBtn({ tip, children, ...p }: React.ComponentProps<typeof Button> & 
 
 export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi; openVault: () => void; openPlanner: () => void; onLobby: () => void }) {
   const { room, members, me, current, lineup, backlog, upNext, isDealer, roundVotes, myVote, isHost, result, actions, activeSprint, sprints, mode } = api
-  const here = members.filter((m) => m.status === 'here').sort((a, b) => a.name.localeCompare(b.name))
+  // A seat shows only for people who have the table open right now (their screen checks in every 30 seconds).
+  // Teammates who joined in an earlier week but haven't opened the link today are listed as "Not here yet".
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 15_000); return () => clearInterval(t) }, [])
+  const ONLINE_MS = 3 * 60_000
+  const isOnline = (m: { id: string; lastSeen: number }) => m.id === me?.id || now - (m.lastSeen || 0) < ONLINE_MS
+  const here = members.filter((m) => m.status === 'here' && isOnline(m)).sort((a, b) => a.name.localeCompare(b.name))
+  const notYet = members.filter((m) => m.status === 'here' && !isOnline(m)).sort((a, b) => a.name.localeCompare(b.name))
   // Who votes: everyone here except the dealer (the host), unless the host turned on "Vote too".
   const voters = here.filter((m) => room?.hostVotes || m.id !== room?.hostId)
   const allIn = voters.length > 0 && voters.every((m) => roundVotes.some((v) => v.memberId === m.id))
@@ -152,7 +159,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
     navigator.clipboard?.writeText(u.toString()).then(() => { setAgendaCopied(true); setTimeout(() => setAgendaCopied(false), 1800) })
   }
   const totalPts = lineup.reduce((s, x) => s + (Number(x.points) || 0), 0)
-  const hostHere = !!room && members.some((m) => m.id === room.hostId && m.status === 'here')
+  const hostHere = !!room && here.some((m) => m.id === room.hostId)
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -232,6 +239,11 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
             <button onClick={openPlanner} className="mt-3 w-full rounded-md border border-dashed px-2 py-2 text-left text-sm text-muted-foreground hover:bg-secondary/60 hover:text-foreground" data-testid="backlog-link">
               Backlog: {backlog.length} {backlog.length === 1 ? 'story' : 'stories'} · <span className="font-medium text-primary">Plan stories →</span>
             </button>
+            {notYet.length > 0 && <>
+              <Separator className="my-4" />
+              <div className="label px-2 mb-2">Not here yet</div>
+              <div className="grid gap-1 px-2" data-testid="not-yet">{notYet.map((m) => <div key={m.id} className="flex items-center gap-2 text-sm text-muted-foreground"><Avatar character={m.character} name={m.name} size={22} dim /> {m.name}</div>)}</div>
+            </>}
             {away.length > 0 && <>
               <Separator className="my-4" />
               <div className="label px-2 mb-2">Away</div>

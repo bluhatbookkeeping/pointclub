@@ -19,6 +19,13 @@ function RoomApp({ roomId }: { roomId: string }) {
   const [view, setView] = useState<'theater' | 'vault' | 'planner'>('theater')
   const [checkedIn, setCheckedIn] = useState(() => { try { return sessionStorage.getItem('pointclub:in:' + location.search) === '1' } catch { return false } })
   useEffect(() => { try { sessionStorage.setItem('pointclub:in:' + location.search, checkedIn ? '1' : '0') } catch { /* */ } }, [checkedIn])
+  // Coming back next week with the same link: you go straight to your seat (your avatar and name are remembered).
+  useEffect(() => {
+    if (api.ready && api.me && !checkedIn) {
+      if (api.me.status !== 'here') api.actions.setStatus('here')
+      setCheckedIn(true)
+    }
+  }, [api.ready, api.me?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!api.ready) return <div className="grid place-items-center h-screen text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin" /></div>
   if (api.error) return <div className="p-10 text-destructive">Couldn't reach the table: {api.error}</div>
