@@ -62,6 +62,8 @@ describe('room api', () => {
     await post('patchRoom', { currentStoryId: 'st1', revealed: false, round: 1 }) // the second save that used to wipe the link
     const room = (await get()).body.snapshot.room
     expect(room).toMatchObject({ adoPattern: 'https://ado/edit/{id}', currentStoryId: 'st1', hostId: 'm1' })
+    await post('patchRoom', { nextCount: 5 })
+    expect((await get()).body.snapshot.room).toMatchObject({ nextCount: 5, adoPattern: 'https://ado/edit/{id}' })
     expect((await post('patchRoom', { version: 99 })).status).toBe(400) // not an allowed field
     expect((await post('patchRoom', { name: 'y' }, 'nope')).status).toBe(400) // room must exist
   })

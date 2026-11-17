@@ -52,6 +52,8 @@ export interface Room {
   revealed: boolean
   round: number
   adoPattern: string
+  /** How many backlog stories sit above the "Next session" line (default 6). */
+  nextCount?: number | null
 }
 export interface Snapshot {
   room: Room | null

@@ -61,3 +61,4 @@ create index if not exists events_room on events(room_id, id);
 -- Added later: skipping a story ("needs more info") with a note. Safe on existing databases.
 alter table stories add column if not exists skipped boolean default false;
 alter table stories add column if not exists note text default '';
+alter table rooms add column if not exists next_count int;

@@ -8,6 +8,13 @@ import type { CardValue, LiveEvent, Member, Room, Snapshot, Sprint, Story } from
 /** A story still waiting for points this sprint (not pointed, not skipped). */
 export const isOpen = (s: Story) => !s.points && !s.skipped
 
+/** Renumber stories 0..n in the given order; returns only the ones whose order changed. */
+export function reorderRows(stories: Story[], ids: string[]): Story[] {
+  const out: Story[] = []
+  ids.forEach((id, i) => { const s = stories.find((x) => x.id === id); if (s && s.order !== i) out.push({ ...s, order: i }) })
+  return out
+}
+
 const EMPTY: Snapshot ={ room: null, members: [], sprints: [], stories: [], votes: [] }
 
 export function useRoom(roomId: string) {
@@ -165,6 +172,14 @@ export function useRoom(roomId: string) {
       await db.upsertStories([{ ...s, sprintId: backlogId, order: base, points: null, outcome: null, skipped: false }])
       if (room.currentStoryId === id) await goToNextOpen(s)
     },
+    /** Save a new top-to-bottom order for a list (backlog or session). Only stories whose place changed are written. */
+    async reorder(ids: string[]) {
+      const changed = reorderRows(stories, ids)
+      if (!changed.length) return
+      setSnap((p) => ({ ...p, stories: p.stories.map((s) => changed.find((c) => c.id === s.id) ?? s) })) // no snap-back while saving
+      await db.upsertStories(changed)
+    },
+    async setNextCount(n: number) { await patchRoom({ nextCount: Math.max(1, Math.min(30, Math.round(n))) }) },
     async editStory(s: Story) { await db.upsertStories([s]) },
     async removeStory(id: string) {
       await db.removeStory(id)

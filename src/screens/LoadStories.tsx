@@ -26,6 +26,9 @@ function learnPattern(rows: Row[], fallback: string) {
   return fallback
 }
 
+// Password managers mistake these boxes for login fields and add their own icons; tell them to stay out.
+const NO_AUTOFILL = { autoComplete: 'off', 'data-lpignore': 'true', 'data-1p-ignore': 'true', 'data-bwignore': 'true', 'data-form-type': 'other' } as const
+
 export function LoadStories({ api, open, onClose, defaultTo = 'backlog' }: { api: RoomApi; open: boolean; onClose: () => void; defaultTo?: 'backlog' | 'session' }) {
   const { room, actions } = api
   const [rows, setRows] = useState<Row[]>(() => Array.from({ length: BLANK_ROWS }, blank))
@@ -111,7 +114,7 @@ export function LoadStories({ api, open, onClose, defaultTo = 'backlog' }: { api
         </DialogHeader>
 
         <div className="flex items-center gap-2 text-sm">
-          <span className="text-muted-foreground">Add to:</span>
+          <span className="text-muted-foreground">Where should these go?</span>
           <div className="inline-flex rounded-md border p-0.5">
             {(['backlog', 'session'] as const).map((k) => (
               <button key={k} type="button" onClick={() => setTo(k)}
@@ -120,19 +123,20 @@ export function LoadStories({ api, open, onClose, defaultTo = 'backlog' }: { api
               </button>
             ))}
           </div>
-          <span className="text-xs text-muted-foreground">{to === 'backlog' ? 'Pick them for a session later.' : 'Ready to vote on now.'}</span>
+          <span className="text-xs text-muted-foreground">{to === 'backlog' ? 'Rank them in the Backlog tab. The top ones go into the next session.' : 'Vote on them in this session now.'}</span>
         </div>
 
         <div className="rounded-md border">
+          {ready.length > 6 && <div className="border-b px-3 py-1.5 text-xs text-muted-foreground" data-testid="row-count">{ready.length} stories in the list. Scroll inside the table to see them all.</div>}
           <div className="grid grid-cols-[6.5rem_1fr_minmax(0,15rem)_2.25rem] gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
             <span>Story #</span><span>Title</span><span>ADO link</span><span />
           </div>
           <div className="max-h-[42vh] overflow-y-auto p-2 grid gap-1.5">
             {rows.map((r, i) => (
               <div key={i} className="grid grid-cols-[6.5rem_1fr_minmax(0,15rem)_2.25rem] items-center gap-2">
-                <Input className="h-8 font-mono" placeholder="e.g. 48213" inputMode="numeric" value={r.number} onChange={(e) => setRow(i, { number: e.target.value.replace(/\D/g, '') })} aria-label={`Story number, row ${i + 1}`} />
-                <Input className="h-8" title={r.title} placeholder={i === 0 ? "Story title" : ""} value={r.title} onChange={(e) => setRow(i, { title: e.target.value })} aria-label={`Title, row ${i + 1}`} />
-                <Input className="h-8 font-mono text-xs" placeholder={r.number && pattern ? buildAdoUrl(pattern, r.number) : 'Paste link (optional)'} value={r.url} onChange={(e) => setRow(i, { url: e.target.value })} aria-label={`ADO link, row ${i + 1}`} />
+                <Input {...NO_AUTOFILL} className="h-8 font-mono" placeholder="e.g. 48213" inputMode="numeric" value={r.number} onChange={(e) => setRow(i, { number: e.target.value.replace(/\D/g, '') })} aria-label={`Story number, row ${i + 1}`} />
+                <Input {...NO_AUTOFILL} className="h-8" title={r.title} placeholder={i === 0 ? "Story title" : ""} value={r.title} onChange={(e) => setRow(i, { title: e.target.value })} aria-label={`Title, row ${i + 1}`} />
+                <Input {...NO_AUTOFILL} className="h-8 font-mono text-xs" placeholder={r.number && pattern ? buildAdoUrl(pattern, r.number) : 'Paste link (optional)'} value={r.url} onChange={(e) => setRow(i, { url: e.target.value })} aria-label={`ADO link, row ${i + 1}`} />
                 <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Remove row" onClick={() => setRows((x) => (x.length > 1 ? x.filter((_, j) => j !== i) : [blank()]))}><Trash2 /></Button>
               </div>
             ))}
@@ -184,7 +188,7 @@ export function LoadStories({ api, open, onClose, defaultTo = 'backlog' }: { api
         {error && <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</div>}
         {savedNote && <div className="flex items-center gap-2 text-sm text-emerald-700"><Check className="h-4 w-4" />{savedNote}</div>}
 
-        <DialogFooter className="items-center gap-2">
+        <DialogFooter className="sticky -bottom-6 -mx-6 -mb-6 items-center gap-2 border-t bg-background px-6 py-4">
           {incomplete > 0 && <span className="mr-auto text-xs text-amber-700">{incomplete} {incomplete === 1 ? 'row needs' : 'rows need'} both a number and a title.</span>}
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
           <Button onClick={save} disabled={saving || ready.length === 0}>

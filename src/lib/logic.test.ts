@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { judge } from './consensus'
 import { parseStories, buildAdoUrl, toAdoPattern } from './parseStories'
+import { reorderRows } from './useRoom'
 
 describe('judge', () => {
   it('all the same is a blockbuster, ignoring ? and coffee', () => {
@@ -78,4 +79,14 @@ describe('toAdoPattern', () => {
     expect(toAdoPattern('https://x/edit/{id}')).toBe('https://x/edit/{id}')
     expect(toAdoPattern('  ')).toBe('')
   })
+})
+
+describe('reorderRows', () => {
+  const mk = (id: string, order: number) => ({ id, order } as any)
+  it('renumbers in the new order and returns only rows that moved', () => {
+    const rows = [mk('a', 0), mk('b', 1), mk('c', 2), mk('d', 3)]
+    const out = reorderRows(rows, ['c', 'a', 'b', 'd'])
+    expect(out.map((r) => [r.id, r.order])).toEqual([['c', 0], ['a', 1], ['b', 2]])
+  })
+  it('writes nothing when the order is unchanged', () => expect(reorderRows([mk('a', 0), mk('b', 1)], ['a', 'b'])).toEqual([]))
 })
