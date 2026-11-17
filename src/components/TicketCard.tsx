@@ -2,30 +2,34 @@ import { motion } from 'framer-motion'
 import type { CardValue } from '../lib/types'
 
 export const label = (v: CardValue | string) => (v === 'coffee' ? '☕' : v)
+const SUIT = '♠'
 
-export function TicketCard({ value, selected, onClick, disabled }: { value: CardValue; selected?: boolean; onClick?: () => void; disabled?: boolean }) {
+/** A real-looking playing card in your hand. */
+export function TicketCard({ value, selected, onClick, disabled, color = '#FF5A36' }: { value: CardValue; selected?: boolean; onClick?: () => void; disabled?: boolean; color?: string }) {
+  const l = label(value)
   return (
     <motion.button
-      whileHover={disabled ? undefined : { y: -14, rotate: -2 }} animate={{ y: selected ? -22 : 0 }}
+      whileHover={disabled ? undefined : { y: -16, rotate: -2 }} animate={{ y: selected ? -26 : 0 }}
       onClick={onClick} disabled={disabled}
-      className={`ticket relative w-16 h-24 rounded-lg font-display text-2xl grid place-items-center transition-colors disabled:opacity-50 ${selected ? 'bg-marquee-400 text-velvet-950 shadow-bulb' : 'bg-screen text-velvet-800 hover:bg-marquee-300'}`}
-      aria-pressed={selected} aria-label={`Vote ${value === 'coffee' ? 'coffee break' : value}`}
-    >
-      <span className="absolute top-1 left-0 right-0 text-[9px] tracking-widest font-body font-bold opacity-60">ADMIT ONE</span>
-      {label(value)}
-      <span className="absolute bottom-1 left-2 right-2 border-t border-dashed border-current opacity-30" />
+      className="relative w-[72px] h-[104px] rounded-lg bg-white border border-ink/15 shadow-card disabled:opacity-50 text-ink"
+      style={selected ? { boxShadow: `0 0 0 3px ${color}, 0 14px 30px rgba(23,24,28,.2)` } : undefined}
+      aria-pressed={selected} aria-label={`Vote ${value === 'coffee' ? 'coffee break' : value}`}>
+      <span className="absolute top-1.5 left-2 text-xs font-display leading-none text-left" style={{ color: selected ? color : undefined }}>{l}<br /><span className="text-[10px]">{SUIT}</span></span>
+      <span className="absolute bottom-1.5 right-2 text-xs font-display leading-none rotate-180 text-left" style={{ color: selected ? color : undefined }}>{l}<br /><span className="text-[10px]">{SUIT}</span></span>
+      <span className="font-display text-3xl font-semibold" style={{ color: selected ? color : undefined }}>{l}</span>
     </motion.button>
   )
 }
 
-/** Small card that sits under a seat. Face down until the reveal. */
-export function SeatCard({ value, faceUp, delay = 0 }: { value: CardValue | null; faceUp: boolean; delay?: number }) {
-  if (!value) return <div className="w-10 h-14 rounded-md border-2 border-dashed border-white/20" />
+/** The card on the table in front of a seat: face down in the player's colour until the reveal. */
+export function SeatCard({ value, faceUp, delay = 0, color = '#FF5A36' }: { value: CardValue | null; faceUp: boolean; delay?: number; color?: string }) {
+  if (!value) return <div className="w-11 h-16 rounded-md border-2 border-dashed border-white/50" />
   return (
-    <div className="w-10 h-14 [perspective:600px]">
-      <motion.div className="relative w-full h-full [transform-style:preserve-3d]" initial={false} animate={{ rotateY: faceUp ? 180 : 0 }} transition={{ duration: 0.5, delay }}>
-        <div className="absolute inset-0 rounded-md bg-velvet-600 border-2 border-marquee-400 grid place-items-center [backface-visibility:hidden] text-marquee-400 text-lg">★</div>
-        <div className="absolute inset-0 rounded-md bg-screen text-velvet-800 font-display text-xl grid place-items-center [backface-visibility:hidden] [transform:rotateY(180deg)]">{label(value)}</div>
+    <div className="w-11 h-16 [perspective:600px]">
+      <motion.div className="relative w-full h-full [transform-style:preserve-3d]" initial={{ y: -20, opacity: 0 }} animate={{ rotateY: faceUp ? 180 : 0, y: 0, opacity: 1 }} transition={{ duration: 0.5, delay: faceUp ? delay : 0 }}>
+        <div className="absolute inset-0 rounded-md border-[3px] border-white shadow-card [backface-visibility:hidden]"
+          style={{ background: `repeating-linear-gradient(45deg, ${color} 0 4px, ${color}cc 4px 8px)` }} />
+        <div className="absolute inset-0 rounded-md bg-white text-ink font-display text-2xl font-semibold grid place-items-center shadow-card [backface-visibility:hidden] [transform:rotateY(180deg)]">{label(value)}</div>
       </motion.div>
     </div>
   )

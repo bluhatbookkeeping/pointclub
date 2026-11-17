@@ -10,9 +10,8 @@ function roomFromUrl() { return new URLSearchParams(location.search).get('room')
 export default function App() {
   const roomId = roomFromUrl()
   return (
-    <div className="film-grain min-h-screen">
-      <div className="curtain-l" /><div className="curtain-r" />
-      <div className="relative z-10 px-16">{roomId ? <RoomApp roomId={roomId} /> : <Landing />}</div>
+    <div className="marble grain min-h-screen">
+      <div className="relative z-10 px-10">{roomId ? <RoomApp roomId={roomId} /> : <Landing />}</div>
     </div>
   )
 }
@@ -23,8 +22,8 @@ function RoomApp({ roomId }: { roomId: string }) {
   const [checkedIn, setCheckedIn] = useState(() => { try { return sessionStorage.getItem('pointclub:in:' + location.search) === '1' } catch { return false } })
   useEffect(() => { try { sessionStorage.setItem('pointclub:in:' + location.search, checkedIn ? '1' : '0') } catch { /* */ } }, [checkedIn, roomId])
 
-  if (!api.ready) return <div className="grid place-items-center h-screen font-display text-marquee-400 text-2xl animate-pulse">Warming up the projector…</div>
-  if (api.error) return <div className="p-10 text-red-300">Couldn't reach the theater: {api.error}</div>
+  if (!api.ready) return <div className="grid place-items-center h-screen font-display text-accent text-2xl animate-pulse">Casing the joint…</div>
+  if (api.error) return <div className="p-10 text-red-600">Couldn't reach the theater: {api.error}</div>
 
   // A removed member (e.g. removed in another tab) goes back to the lobby.
   if (!api.me || !checkedIn) return <Lobby api={api} onEnter={() => setCheckedIn(true)} />
