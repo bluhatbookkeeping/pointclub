@@ -143,6 +143,9 @@ let onLocal: (e: LiveEvent) => void = () => {}
 export const setLocalEcho = (f: (e: LiveEvent) => void) => { onLocal = f }
 
 export function makeBackend(roomId: string): Backend {
-  if (import.meta.env.VITE_BACKEND === 'api') return new ApiBackend(roomId)
+  // The built site (Vercel) is always team mode, so a missing setting can't split the team into private tables.
+  // Demo mode is only for local tries: `npm run dev`, or a build made with VITE_BACKEND=local.
+  const v = import.meta.env.VITE_BACKEND
+  if (v === 'api' || (import.meta.env.PROD && v !== 'local')) return new ApiBackend(roomId)
   return new LocalBackend(roomId)
 }

@@ -165,7 +165,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
             <span className="font-medium">{sessionName(activeSprint?.name)}</span>
             {activeSprint?.title && <span className="hidden truncate text-muted-foreground 2xl:inline">{activeSprint.title}</span>}
             <Badge variant="secondary" className="whitespace-nowrap">{pointedCount}/{lineup.length} pointed · {totalPts} pts</Badge>
-            {mode === 'local' && <Tooltip><TooltipTrigger asChild><Badge variant="destructive" className="whitespace-nowrap">Demo mode</Badge></TooltipTrigger><TooltipContent className="max-w-xs whitespace-normal">Team mode is off, so only tabs in this browser share the room. On Vercel, set VITE_BACKEND = api and redeploy.</TooltipContent></Tooltip>}
+            {mode === 'local' && <Tooltip><TooltipTrigger asChild><Badge variant="destructive" className="whitespace-nowrap">Demo mode</Badge></TooltipTrigger><TooltipContent className="max-w-xs whitespace-normal">Team mode is off, so only tabs in this browser share the room. This only happens when running Point Club on your own computer.</TooltipContent></Tooltip>}
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
             {isHost && <Button variant="outline" size="sm" onClick={openPlanner} title="Plan stories: add stories, rank the backlog, pick the next session"><ListChecks /><span className="hidden lg:inline">Plan stories</span></Button>}
