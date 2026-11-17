@@ -1,23 +1,30 @@
-import { useState } from 'react'
-import type { RoomApi } from '../lib/useRoom'
+import { useEffect, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import type { RoomApi } from '@/lib/useRoom'
 
-export function NewSprint({ api, onClose }: { api: RoomApi; onClose: () => void }) {
+export function NewSprint({ api, open, onClose }: { api: RoomApi; open: boolean; onClose: () => void }) {
   const cur = api.activeSprint
   const nextNum = (Number(cur?.name.match(/\d+/)?.[0]) || api.sprints.length) + 1
   const [name, setName] = useState(`Sprint ${nextNum}`)
   const [title, setTitle] = useState('')
+  useEffect(() => { if (open) { setName(`Sprint ${nextNum}`); setTitle('') } }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
   const unpointed = api.lineup.filter((s) => !s.points).length
   return (
-    <div className="fixed inset-0 z-50 bg-ink/40 grid place-items-center" onClick={onClose}>
-      <form className="frame p-6 w-[480px]" onClick={(e) => e.stopPropagation()} onSubmit={async (e) => { e.preventDefault(); await api.actions.closeAndStartNext(name, title); onClose() }}>
-        <h2 className="font-display text-2xl text-accent mb-1">🎞️ Wrap the job</h2>
-        <p className="text-ink/60 text-sm mb-4">Close <b>{cur?.name}</b>, show everyone the take, and file it in Case Files.{unpointed ? ` ${unpointed} unpointed ${unpointed === 1 ? 'story stays' : 'stories stay'} in the old sprint.` : ''}</p>
-        <label className="text-sm text-ink/70">Next sprint</label>
-        <input className="input w-full mb-3" value={name} onChange={(e) => setName(e.target.value)} />
-        <label className="text-sm text-ink/70">Job codename (optional)</label>
-        <input className="input w-full mb-5" placeholder="e.g. Operation Invoice" value={title} onChange={(e) => setTitle(e.target.value)} />
-        <div className="flex justify-end gap-2"><button type="button" className="btn-ghost" onClick={onClose}>Cancel</button><button className="btn-gold">Show the take & start {name}</button></div>
-      </form>
-    </div>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <form className="grid gap-4" onSubmit={async (e) => { e.preventDefault(); await api.actions.closeAndStartNext(name, title); onClose() }}>
+          <DialogHeader>
+            <DialogTitle>Wrap the job</DialogTitle>
+            <DialogDescription>Close {cur?.name}, show everyone the take, and file it in Case Files.{unpointed ? ` ${unpointed} unpointed ${unpointed === 1 ? 'story stays' : 'stories stay'} with ${cur?.name}.` : ''}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-1.5"><Label htmlFor="sn">Next sprint</Label><Input id="sn" value={name} onChange={(e) => setName(e.target.value)} /></div>
+          <div className="grid gap-1.5"><Label htmlFor="st">Codename (optional)</Label><Input id="st" placeholder="e.g. Operation Invoice" value={title} onChange={(e) => setTitle(e.target.value)} /></div>
+          <DialogFooter><Button type="button" variant="outline" onClick={onClose}>Cancel</Button><Button type="submit">Wrap & start {name}</Button></DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

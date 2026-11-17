@@ -1,18 +1,17 @@
-import { motion } from 'framer-motion'
+import { ArrowRight } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Logo } from '@/components/Logo'
 
 export function Landing() {
-  const open = () => {
-    const id = Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 6)
-    location.search = '?room=' + id
-  }
+  const open = () => { location.search = '?room=' + Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 6) }
   return (
-    <div className="min-h-screen grid place-items-center text-center">
-      <div>
-        <motion.h1 initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="font-display text-8xl font-bold tracking-wide">
-          POINT<span className="text-accent">CLUB</span>
-        </motion.h1>
-        <p className="mt-4 text-ink/70 max-w-md mx-auto">Planning poker for the crew. Open a theater once, share the link with the team, and come back to the same link every sprint.</p>
-        <button className="btn-gold mt-8 text-lg" onClick={open}>Open a new table</button>
+    <div className="min-h-screen grid place-items-center px-6">
+      <div className="max-w-xl text-center flex flex-col items-center gap-6">
+        <Badge variant="secondary" className="rounded-full">Planning poker · no logins</Badge>
+        <Logo big />
+        <p className="text-lg text-muted-foreground">Point your stories like a heist crew. Open a table once, share the link, and come back to the same link every sprint.</p>
+        <Button size="lg" onClick={open}>Open a new table <ArrowRight /></Button>
       </div>
     </div>
   )

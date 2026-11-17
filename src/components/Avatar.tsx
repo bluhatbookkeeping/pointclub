@@ -11,7 +11,7 @@ export function Avatar({ character, size = 56, mood = 'idle', dim = false }: { c
   const dur = mood === 'cheer' ? 0.8 : mood === 'shock' ? 0.4 : 2.4
   return (
     <motion.div animate={anim} transition={{ duration: dur, repeat: mood === 'shock' ? 2 : mood === 'idle' ? 0 : Infinity, ease: 'easeInOut' }}
-      className="relative rounded-full shrink-0 p-[3px] shadow-card"
+      className="relative rounded-full shrink-0 p-[3px] shadow-md"
       style={{ width: size, height: size, background: c.color, opacity: dim ? 0.35 : 1, filter: dim ? 'grayscale(1)' : undefined }} title={`${c.name} · ${c.role}`}>
       <div className="w-full h-full rounded-full overflow-hidden border-2 border-white" style={{ background: `radial-gradient(circle at 50% 30%, #ffffff, ${c.color}33 75%)` }}>
         {c.image ? <img src={c.image} alt={c.name} className="w-full h-full object-cover" /> : (
