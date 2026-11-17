@@ -14,9 +14,9 @@ import { castById } from '@/lib/cast'
 import type { RoomApi } from '@/lib/useRoom'
 
 const OUTCOME: Record<string, { text: string; cls: string }> = {
-  blockbuster: { text: 'Clean job', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  critics: { text: 'Close enough', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
-  plottwist: { text: 'Compromised', cls: 'bg-red-50 text-red-700 border-red-200' },
+  blockbuster: { text: 'Agreed', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  critics: { text: 'Close', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
+  plottwist: { text: 'Split vote', cls: 'bg-red-50 text-red-700 border-red-200' },
 }
 
 export function Vault({ api, onBack }: { api: RoomApi; onBack: () => void }) {
@@ -25,13 +25,26 @@ export function Vault({ api, onBack }: { api: RoomApi; onBack: () => void }) {
   const stats = sprints.map((s) => ({ s, st: sprintStats(s, api.stories, api.votes, api.members) }))
   const maxPts = Math.max(1, ...stats.map((x) => x.st.total))
   const open = stats.find((x) => x.s.id === openId)
+  // Team-wide numbers across every sprint with points (useful for planning capacity).
+  const withPoints = stats.filter((x) => x.st.pointed.length)
+  const allPointed = withPoints.flatMap((x) => x.st.pointed)
+  const team = {
+    velocity: withPoints.length ? Math.round(withPoints.reduce((a, x) => a + x.st.total, 0) / withPoints.length) : 0,
+    perStory: allPointed.length ? Math.round((allPointed.reduce((a, s) => a + (Number(s.points) || 0), 0) / allPointed.length) * 10) / 10 : 0,
+    firstTry: allPointed.length ? Math.round((allPointed.filter((s) => s.rounds === 1).length / allPointed.length) * 100) : 0,
+    stories: allPointed.length,
+  }
   const nameOf = (id: string) => api.members.find((m) => m.id === id)
 
   const exportCsv = () => {
-    const rows = [['Sprint', 'Codename', 'Story #', 'Title', 'Points', 'Outcome', 'Attempts', 'Votes']]
-    for (const { s, st } of stats) for (const story of st.list)
-      rows.push([s.name, s.title, story.number, story.title, story.points ?? '', story.outcome ?? '', String(story.rounds),
-        st.finalVotes(story).map((v) => `${nameOf(v.memberId)?.name ?? '?'}=${label(v.value)}`).join('; ')])
+    const rows = [['Sprint', 'Codename', 'Story #', 'Title', 'Points', 'Outcome', 'Votes taken', 'Average vote', 'Lowest vote', 'Highest vote', 'Votes', 'Note', 'ADO link']]
+    const outcomeText = (o: string | null) => (o && OUTCOME[o] ? OUTCOME[o].text : '')
+    for (const { s, st } of stats) for (const story of st.list) {
+      const vs = st.voteStats(story)
+      rows.push([s.name, s.title, story.number, story.title, story.points ?? '', outcomeText(story.outcome) || (story.skipped ? 'Skipped' : ''), String(story.rounds),
+        vs ? String(vs.avg) : '', vs ? String(vs.min) : '', vs ? String(vs.max) : '',
+        st.finalVotes(story).map((v) => `${nameOf(v.memberId)?.name ?? '?'}=${label(v.value)}`).join('; '), story.note ?? '', story.url])
+    }
     const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'point-club-history.csv'; a.click()
   }
@@ -46,7 +59,18 @@ export function Vault({ api, onBack }: { api: RoomApi; onBack: () => void }) {
         </div>
       </header>
       <div className="mx-auto max-w-6xl p-6 grid gap-6">
-        <div><h1 className="text-3xl font-semibold tracking-tight">Case Files</h1><p className="text-muted-foreground">Every sprint the crew has pointed.</p></div>
+        <div><h1 className="text-3xl font-semibold tracking-tight">Case Files</h1><p className="text-muted-foreground">Every sprint, every story and every vote. Click a sprint to see its stories.</p></div>
+
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {[
+            ['Average velocity', `${team.velocity}`, 'points per sprint'],
+            ['Average story size', `${team.perStory}`, 'points per story'],
+            ['Agreed on first vote', `${team.firstTry}%`, 'of stories, no revote needed'],
+            ['Stories pointed', `${team.stories}`, `across ${withPoints.length} ${withPoints.length === 1 ? 'sprint' : 'sprints'}`],
+          ].map(([k, v, sub]) => (
+            <Card key={k}><CardHeader className="p-4"><CardDescription>{k}</CardDescription><CardTitle className="text-3xl tabular-nums">{v}</CardTitle><div className="text-xs text-muted-foreground">{sub}</div></CardHeader></Card>
+          ))}
+        </div>
 
         <Card>
           <CardHeader><CardTitle className="text-base">Velocity</CardTitle><CardDescription>Points locked in per sprint</CardDescription></CardHeader>
@@ -68,7 +92,7 @@ export function Vault({ api, onBack }: { api: RoomApi; onBack: () => void }) {
             <Card key={s.id} className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => setOpenId(s.id)}>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
-                  <Badge variant={s.closedAt ? 'secondary' : 'default'}>{s.closedAt ? 'Case closed' : 'Active'}</Badge>
+                  <Badge variant={s.closedAt ? 'secondary' : 'default'}>{s.closedAt ? 'Finished' : 'Active'}</Badge>
                   {s.closedAt ? <FolderClosed className="h-4 w-4 text-muted-foreground" /> : <FolderOpen className="h-4 w-4 text-muted-foreground" />}
                 </div>
                 <CardTitle className="pt-2">{s.name}</CardTitle>
@@ -78,8 +102,8 @@ export function Vault({ api, onBack }: { api: RoomApi; onBack: () => void }) {
                 <div className="text-3xl font-semibold tabular-nums">{st.total} <span className="text-sm font-normal text-muted-foreground">pts</span></div>
                 <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
                   <Badge variant="outline">{st.pointed.length} pointed</Badge>
-                  <Badge variant="outline" className={OUTCOME.blockbuster.cls}>{st.blockbusters} clean</Badge>
-                  <Badge variant="outline" className={OUTCOME.plottwist.cls}>{st.twists} compromised</Badge>
+                  <Badge variant="outline" className={OUTCOME.blockbuster.cls}>{st.blockbusters} agreed</Badge>
+                  <Badge variant="outline" className={OUTCOME.plottwist.cls}>{st.twists} split</Badge>
                 </div>
               </CardContent>
             </Card>
@@ -92,24 +116,26 @@ export function Vault({ api, onBack }: { api: RoomApi; onBack: () => void }) {
           <DialogHeader>
             <DialogTitle>{open.s.name}{open.s.title ? ` · ${open.s.title}` : ''}</DialogTitle>
             <DialogDescription>
-              {open.st.total} points · {open.st.blockbusters} clean · {open.st.twists} compromised
+              {open.st.total} points · {open.st.pointed.length} stories · avg {open.st.avgPerStory} per story · {open.st.firstTryPct}% agreed on first vote
               {open.st.sharpshooter ? ` · Sharpshooter: ${open.st.sharpshooter.name}` : ''}{open.st.contrarian ? ` · Wild card: ${open.st.contrarian.name}` : ''}
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-md border">
             <Table>
-              <TableHeader><TableRow><TableHead>Story</TableHead><TableHead className="w-20">Points</TableHead><TableHead className="w-44">Outcome</TableHead><TableHead>Final votes</TableHead></TableRow></TableHeader>
-              <TableBody>{open.st.list.map((story) => (
+              <TableHeader><TableRow><TableHead>Story</TableHead><TableHead className="w-20">Points</TableHead><TableHead className="w-36">Average vote</TableHead><TableHead className="w-36">Result</TableHead><TableHead>Final votes</TableHead></TableRow></TableHeader>
+              <TableBody>{open.st.list.map((story) => { const vs = open.st.voteStats(story); return (
                 <TableRow key={story.id} className="align-top">
                   <TableCell><span className="font-mono text-xs text-muted-foreground">#{story.number}</span><br />{story.url ? <a className="underline-offset-4 hover:underline" href={story.url} target="_blank" rel="noreferrer">{story.title}</a> : story.title}</TableCell>
                   <TableCell className="font-mono text-lg">{story.points ? label(story.points) : '–'}</TableCell>
-                  <TableCell>{story.outcome && OUTCOME[story.outcome] ? <Badge variant="outline" className={OUTCOME[story.outcome].cls}>{OUTCOME[story.outcome].text}</Badge> : '–'}{story.rounds > 1 && <span className="ml-2 text-xs text-muted-foreground">{story.rounds} attempts</span>}</TableCell>
+                  <TableCell className="tabular-nums">{vs ? <><span className="font-semibold">{vs.avg}</span><span className="text-xs text-muted-foreground"> · range {vs.min}–{vs.max}</span></> : '–'}</TableCell>
+                  <TableCell>{story.outcome && OUTCOME[story.outcome] ? <Badge variant="outline" className={OUTCOME[story.outcome].cls}>{OUTCOME[story.outcome].text}</Badge>
+                    : story.skipped ? <><Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">Skipped</Badge>{story.note && <div className="mt-1 max-w-48 text-xs text-amber-800">{story.note}</div>}</> : '–'}{story.rounds > 1 && <div className="mt-1 text-xs text-muted-foreground">{story.rounds - 1} {story.rounds === 2 ? 'revote' : 'revotes'}</div>}</TableCell>
                   <TableCell><div className="flex flex-wrap gap-1.5">{open.st.finalVotes(story).map((v) => {
                     const m = nameOf(v.memberId)
                     return <Badge key={v.id} variant="secondary" className="gap-1.5 font-normal">{m && <Avatar character={m.character} name={m.name} size={16} />}{m?.name ?? '?'} <span className="font-mono font-semibold">{label(v.value)}</span></Badge>
                   })}</div></TableCell>
                 </TableRow>
-              ))}</TableBody>
+              ) })}</TableBody>
             </Table>
           </div>
         </DialogContent>}

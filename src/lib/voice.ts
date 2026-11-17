@@ -37,7 +37,7 @@ export const voice = {
   /** Warm the browser cache so the first line plays instantly. */
   preload(characters: string[]) {
     for (const c of characters) clip(`voice/${c}`)
-    for (const n of ['clean', 'close', 'compromised', 'wrap', 'p1', 'p2', 'p3', 'p5', 'p8', 'p13', 'p21']) clip(`narr/${n}`)
+    for (const n of ['next', 'done', 'clean', 'close', 'compromised', 'wrap', 'p1', 'p2', 'p3', 'p5', 'p8', 'p13', 'p21']) clip(`narr/${n}`)
     for (const n of ['chips', 'chaching', 'alarm', 'boom']) clip(`sfx/${n}`)
   },
   vote(character: string) { fx('chips', 0.5); say(`voice/${character}`) },
@@ -46,5 +46,18 @@ export const voice = {
   closeEnough() { say('narr/close', true) },
   compromised() { fx('alarm', 0.45); setTimeout(() => say('narr/compromised', true), 400) },
   lockedIn(points: string) { if (POINT_LINES.has(points)) say(`narr/p${points}`, true) },
+  /** "Let's vote." for a new story, after any line that's still playing (e.g. the points just saved). */
+  nextStory() {
+    if (isMuted() || !voicesOn) return
+    if (speaking && !speaking.paused && !speaking.ended) speaking.addEventListener('ended', () => say('narr/next'), { once: true })
+    else say('narr/next')
+  },
   wrap() { say('narr/wrap', true) },
+  /** All stories pointed or skipped. Waits for the points line to finish first. */
+  done() {
+    if (isMuted() || !voicesOn) return
+    fx('chaching', 0.5)
+    if (speaking && !speaking.paused && !speaking.ended) speaking.addEventListener('ended', () => say('narr/done'), { once: true })
+    else setTimeout(() => say('narr/done'), 300)
+  },
 }

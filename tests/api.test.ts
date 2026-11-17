@@ -74,6 +74,12 @@ describe('room api', () => {
     expect(snap.room.activeSprintId).toBe(snap.sprints[0].id)
   })
 
+  it('saves skipped stories with their note', async () => {
+    await post('upsertRoom', { name: 'x' }); await post('upsertSprint', { id: 's1', name: 'Sprint 1', title: '', startedAt: 1 })
+    await post('upsertStories', [{ id: 'st1', sprintId: 's1', number: '1', title: 'Needs info', url: '', points: null, outcome: null, rounds: 1, order: 0, skipped: true, note: 'Waiting on API spec' }])
+    expect((await get()).body.snapshot.stories[0]).toMatchObject({ skipped: true, note: 'Waiting on API spec' })
+  })
+
   it('delivers live events after the cursor only', async () => {
     await post('upsertRoom', { name: 'x' })
     const first = (await get()).body

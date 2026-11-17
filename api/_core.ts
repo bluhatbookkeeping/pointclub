@@ -11,7 +11,7 @@ const TABLES = {
   rooms: [t('id'), t('name'), t('host_id'), t('active_sprint_id'), t('current_story_id'), { name: 'revealed', type: 'bool' }, i('round'), t('ado_pattern')],
   members: [t('id'), t('room_id'), t('name'), t('character'), t('status'), b('last_seen')],
   sprints: [t('id'), t('room_id'), t('name'), t('title'), b('started_at'), b('closed_at')],
-  stories: [t('id'), t('room_id'), t('sprint_id'), t('number'), t('title'), t('url'), t('points'), t('outcome'), i('rounds'), i('order')],
+  stories: [t('id'), t('room_id'), t('sprint_id'), t('number'), t('title'), t('url'), t('points'), t('outcome'), i('rounds'), i('order'), { name: 'skipped', type: 'bool' }, t('note')],
   votes: [t('id'), t('room_id'), t('story_id'), t('member_id'), i('round'), t('value')],
 } satisfies Record<string, Col[]>
 type Table = keyof typeof TABLES

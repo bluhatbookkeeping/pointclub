@@ -30,6 +30,10 @@ export interface Story {
   outcome: Outcome | null
   rounds: number
   order: number
+  /** Skipped this sprint (needs more info); carried to the next sprint when it's wrapped. */
+  skipped?: boolean | null
+  /** Why it was skipped / what's needed. */
+  note?: string | null
 }
 export interface Vote {
   id: string // `${storyId}:${round}:${memberId}`

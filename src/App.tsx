@@ -6,6 +6,7 @@ import { Landing } from './screens/Landing'
 import { Lobby } from './screens/Lobby'
 import { Theater } from './screens/Theater'
 import { Vault } from './screens/Vault'
+import { Agenda } from './screens/Agenda'
 
 export default function App() {
   const roomId = new URLSearchParams(location.search).get('room')
@@ -20,6 +21,8 @@ function RoomApp({ roomId }: { roomId: string }) {
 
   if (!api.ready) return <div className="grid place-items-center h-screen text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin" /></div>
   if (api.error) return <div className="p-10 text-destructive">Couldn't reach the table: {api.error}</div>
+  // Read-only agenda link: anyone can see the upcoming stories without joining.
+  if (new URLSearchParams(location.search).get('agenda')) return <Agenda api={api} />
   if (!api.me || !checkedIn) return <Lobby api={api} onEnter={() => setCheckedIn(true)} />
   if (view === 'vault') return <Vault api={api} onBack={() => setView('theater')} />
   return <Theater api={api} openVault={() => setView('vault')} onLobby={() => setCheckedIn(false)} />

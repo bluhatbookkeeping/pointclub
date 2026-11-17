@@ -78,7 +78,7 @@ export function PokerTable({ seats, faceUp, votesIn, center }: { seats: SeatInfo
               <div className="text-xs font-semibold whitespace-nowrap">{s.member.name}{s.isMe ? ' (you)' : ''}</div>
               <div className="text-[10px] whitespace-nowrap" style={{ color: c.color }}>{c.name}</div>
             </div>
-            {s.spotlight && <Badge variant="destructive" className="uppercase tracking-wider text-[10px]">Make your case</Badge>}
+            {s.spotlight && <Badge variant="destructive" className="uppercase tracking-wider text-[10px]">Explain your vote</Badge>}
           </div>
         )
       })}

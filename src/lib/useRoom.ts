@@ -5,7 +5,10 @@ import { getMyId, forgetMe, uid } from './identity'
 import { buildAdoUrl, ParsedStory } from './parseStories'
 import type { CardValue, LiveEvent, Member, Room, Snapshot, Sprint, Story } from './types'
 
-const EMPTY: Snapshot = { room: null, members: [], sprints: [], stories: [], votes: [] }
+/** A story still waiting for points this sprint (not pointed, not skipped). */
+export const isOpen = (s: Story) => !s.points && !s.skipped
+
+const EMPTY: Snapshot ={ room: null, members: [], sprints: [], stories: [], votes: [] }
 
 export function useRoom(roomId: string) {
   const db = useMemo(() => makeBackend(roomId), [roomId])
@@ -58,6 +61,12 @@ export function useRoom(roomId: string) {
 
   // Send only the changed fields, so two quick changes (or two people) can't undo each other.
   const patchRoom = (p: Partial<Room>) => room && db.patchRoom(p)
+  /** After a story is saved or skipped: go to the next story still needing points, or to the "all done" state. */
+  const goToNextOpen = async (from: Story) => {
+    const open = (s: Story) => s.id !== from.id && isOpen(s)
+    const next = lineup.find((s) => open(s) && s.order > from.order) ?? lineup.find(open)
+    await patchRoom({ currentStoryId: next?.id ?? null, revealed: false, round: next ? next.rounds : 1 })
+  }
 
   const actions = {
     onEvent(h: (e: LiveEvent) => void) { eventHandlers.current.push(h); return () => { eventHandlers.current = eventHandlers.current.filter((x) => x !== h) } },
@@ -78,7 +87,7 @@ export function useRoom(roomId: string) {
     async claimHost() { await patchRoom({ hostId: meId }) },
 
     async vote(value: CardValue) {
-      if (!current || !room || room.revealed) return
+      if (!current || !room || room.revealed || current.points || current.skipped) return // pointed/skipped stories are locked
       const id = `${current.id}:${room.round}:${meId}`
       if (myVote === value) await db.removeVote(id)
       else await db.upsertVote({ id, roomId, storyId: current.id, memberId: meId, round: room.round, value })
@@ -93,13 +102,31 @@ export function useRoom(roomId: string) {
     async lockIn(points: string) {
       if (!current || !room) return
       const outcome = judge(roundVotes.map((v) => v.value)).outcome
-      await db.upsertStories([{ ...current, points, outcome, rounds: room.round }])
-      const next = lineup.find((s) => s.id !== current.id && s.points == null && s.order > current.order) ?? lineup.find((s) => s.id !== current.id && s.points == null)
-      await patchRoom({ currentStoryId: next?.id ?? current.id, revealed: false, round: next ? next.rounds : room.round })
+      await db.upsertStories([{ ...current, points, outcome, rounds: room.round, skipped: false }])
+      await goToNextOpen(current)
+    },
+    /** Park the current story for next sprint ("needs more info"), with an optional note, and move on. */
+    async skipStory(note: string) {
+      if (!current || !room) return
+      await db.upsertStories([{ ...current, skipped: true, note: note.trim() }])
+      await goToNextOpen(current)
+    },
+    /** Bring a skipped story back into this sprint's voting. */
+    async unskipStory() {
+      if (!current) return
+      await db.upsertStories([{ ...current, skipped: false }])
     },
     async selectStory(id: string) {
       const s = stories.find((x) => x.id === id)
-      if (s) await patchRoom({ currentStoryId: id, revealed: false, round: s.points ? s.rounds + 1 : s.rounds })
+      // A pointed story opens locked (showing its points); the host can revote it on purpose.
+      if (s) await patchRoom({ currentStoryId: id, revealed: false, round: s.rounds })
+    },
+    /** Reopen voting on a story that already has points. */
+    async revoteStory() {
+      if (!current || !room) return
+      const round = current.rounds + 1
+      await db.upsertStories([{ ...current, points: null, outcome: null, rounds: round }])
+      await patchRoom({ revealed: false, round })
     },
     async addStories(rows: ParsedStory[], pattern = room?.adoPattern ?? '') {
       if (!activeSprint || !room) return
@@ -128,6 +155,16 @@ export function useRoom(roomId: string) {
       if (activeSprint) await db.upsertSprint({ ...activeSprint, closedAt: Date.now() })
       const next: Sprint = { id: uid(), roomId, name, title, startedAt: Date.now(), closedAt: null }
       await db.upsertSprint(next)
+      // Skipped and unpointed stories move to the new sprint (with their notes). The old sprint keeps them
+      // marked as skipped, so its history stays accurate.
+      const carry = lineup.filter((s) => !s.points)
+      if (carry.length) {
+        await db.upsertStories(carry.map((s) => ({ ...s, skipped: true })))
+        await db.upsertStories(carry.map((s, i) => ({
+          ...s, id: uid(), sprintId: next.id, points: null, outcome: null, rounds: 1, order: i, skipped: false,
+          note: s.note ? `Carried from ${activeSprint?.name ?? 'last sprint'}: ${s.note}` : `Carried from ${activeSprint?.name ?? 'last sprint'}`,
+        })))
+      }
       await patchRoom({ activeSprintId: next.id, currentStoryId: null, revealed: false, round: 1 })
     },
   }

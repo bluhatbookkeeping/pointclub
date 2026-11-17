@@ -20,8 +20,17 @@ export function sprintStats(sprint: Sprint, stories: Story[], votes: Vote[], mem
   const people = Object.values(per)
   const top = <K extends keyof (typeof people)[number]>(k: K, f = (p: (typeof people)[number]) => p[k] as number) =>
     people.filter((p) => f(p) > 0).sort((a, b) => f(b) - f(a))[0]
+  /** Average and range of the numeric final votes for one story (? and ☕ ignored). */
+  const voteStats = (s: Story) => {
+    const nums = finalVotes(s).map((v) => Number(v.value)).filter((n) => Number.isFinite(n))
+    if (!nums.length) return null
+    return { avg: Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10, min: Math.min(...nums), max: Math.max(...nums), n: nums.length }
+  }
+  const firstTry = pointed.filter((s) => s.rounds === 1).length
   return {
-    list, pointed, total,
+    list, pointed, total, voteStats,
+    avgPerStory: pointed.length ? Math.round((total / pointed.length) * 10) / 10 : 0,
+    firstTryPct: pointed.length ? Math.round((firstTry / pointed.length) * 100) : 0,
     blockbusters: pointed.filter((s) => s.outcome === 'blockbuster').length,
     twists: pointed.filter((s) => s.outcome === 'plottwist').length,
     retakes: pointed.reduce((s, x) => s + (x.rounds - 1), 0),

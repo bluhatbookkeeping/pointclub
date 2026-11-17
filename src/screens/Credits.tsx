@@ -12,9 +12,9 @@ export function Credits({ api, sprint, onClose }: { api: RoomApi; sprint: Sprint
   const lines: [string, string][] = [
     ['Total points', String(st.total)],
     ['Stories pointed', `${st.pointed.length}`],
-    ['Clean jobs', `${st.blockbusters}`],
-    ['Compromised', `${st.twists}`],
-    ['Extra attempts', `${st.retakes}`],
+    ['Agreed', `${st.blockbusters}`],
+    ['Split votes', `${st.twists}`],
+    ['Revotes', `${st.retakes}`],
   ]
   const awards: [string, string | undefined][] = [
     ['🎯 Sharpshooter', st.sharpshooter && `${st.sharpshooter.name} (${st.sharpshooter.hits} on the nose)`],
@@ -24,7 +24,7 @@ export function Credits({ api, sprint, onClose }: { api: RoomApi; sprint: Sprint
   return (
     <div className="fixed inset-0 z-50 bg-background overflow-hidden cursor-pointer" onClick={onClose}>
       <motion.div className="absolute left-0 right-0 text-center" initial={{ y: '100vh' }} animate={{ y: '-110%' }} transition={{ duration: 22, ease: 'linear' }} onAnimationComplete={onClose}>
-        <div className="text-muted-foreground tracking-[0.4em] text-sm">THE TAKE</div>
+        <div className="text-muted-foreground tracking-[0.4em] text-sm">SPRINT RECAP</div>
         <div className="text-7xl font-semibold tracking-tight mt-3">{sprint.name}</div>
         {sprint.title && <div className="text-3xl italic mt-2">{sprint.title}</div>}
         <div className="mt-16 grid gap-3 text-xl">{lines.map(([k, v]) => <div key={k}><span className="text-muted-foreground">{k}</span> · <b>{v}</b></div>)}</div>
