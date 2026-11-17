@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Camera, Clapperboard, Crown, ExternalLink, FolderOpen, Link2, RotateCcw, Volume2, VolumeX, UserRound, Eye, Check, Circle } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
-import { SeatCard, TicketCard, label } from '@/components/TicketCard'
+import { PokerTable } from '@/components/PokerTable'
+import { TicketCard, label } from '@/components/TicketCard'
 import { Countdown, Verdict } from '@/components/RevealFx'
 import { Throws } from '@/components/Throws'
 import { Logo } from '@/components/Logo'
@@ -10,7 +11,6 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { LoadStories } from './LoadStories'
 import { NewSprint } from './NewSprint'
@@ -94,7 +94,7 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
             <Button variant="ghost" size="sm" onClick={openVault}><FolderOpen /> Case Files</Button>
             <IconBtn tip={copied ? 'Copied!' : 'Copy room link'} onClick={copyLink}>{copied ? <Check /> : <Link2 />}</IconBtn>
             <IconBtn tip={muted ? 'Unmute' : 'Mute'} onClick={() => { setMuted(!muted); setMute(!muted) }}>{muted ? <VolumeX /> : <Volume2 />}</IconBtn>
-            <IconBtn tip="My seat (lobby)" onClick={onLobby}>{me ? <Avatar character={me.character} size={26} /> : <UserRound />}</IconBtn>
+            <IconBtn tip="My seat (lobby)" onClick={onLobby}>{me ? <Avatar character={me.character} name={me.name} size={26} /> : <UserRound />}</IconBtn>
           </div>
         </div>
       </header>
@@ -121,19 +121,19 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
             {away.length > 0 && <>
               <Separator className="my-4" />
               <div className="label px-2 mb-2">Away</div>
-              <div className="grid gap-1 px-2">{away.map((m) => <div key={m.id} className="flex items-center gap-2 text-sm text-muted-foreground"><Avatar character={m.character} size={22} dim /> {m.name}</div>)}</div>
+              <div className="grid gap-1 px-2">{away.map((m) => <div key={m.id} className="flex items-center gap-2 text-sm text-muted-foreground"><Avatar character={m.character} name={m.name} size={22} dim /> {m.name}</div>)}</div>
             </>}
           </div>
         </aside>
 
         {/* Main */}
-        <main className="flex-1 min-w-0 flex flex-col gap-6 p-6">
+        <main className="flex-1 min-w-0 flex flex-col gap-4 p-6">
           <Card>
-            <CardContent className="p-6 flex items-center gap-6">
+            <CardContent className="px-6 py-4 flex items-center gap-6">
               {current ? <>
                 <div className="flex-1 min-w-0">
                   <div className="label">Target {lineup.findIndex((s) => s.id === current.id) + 1} of {lineup.length}{room && room.round > 1 ? ` · Attempt ${room.round}` : ''}</div>
-                  <h1 className="mt-1 text-3xl font-semibold tracking-tight truncate"><span className="font-mono text-accent">#{current.number}</span> {current.title}</h1>
+                  <h1 className="mt-1 text-2xl font-semibold tracking-tight truncate"><span className="font-mono text-accent">#{current.number}</span> {current.title}</h1>
                 </div>
                 {current.url ? <Button variant="outline" onClick={openAdo}>Open in ADO <ExternalLink /></Button>
                   : isHost ? <span className="text-xs text-muted-foreground max-w-48">Set your ADO link pattern in “Load targets” to get story links.</span> : null}
@@ -142,48 +142,23 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
           </Card>
 
           {/* The table */}
-          <section className="felt-table relative mx-auto w-full max-w-5xl rounded-[200px] flex flex-wrap justify-center items-start gap-x-8 gap-y-6 px-16 py-10 min-h-[260px]">
-            {here.map((m, i) => {
-              const v = voteOf(m.id), c = castById(m.character)
-              const isSpot = !!(spotlight && v && spotlight.has(v))
-              const mood = shown && verdict === 'blockbuster' ? 'cheer' : shown && verdict === 'plottwist' ? 'shock' : !v && current && !shown ? 'thinking' : 'idle'
-              const seat = (
-                <button className="relative" disabled={m.id === me?.id}>
-                  <Avatar character={m.character} size={72} mood={mood} />
-                  {room?.hostId === m.id && <span className="absolute -top-1 -right-1 grid h-6 w-6 place-items-center rounded-full bg-background shadow"><Crown className="h-3.5 w-3.5 text-amber-500" /></span>}
-                  {v && !shown && <span className="absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full bg-emerald-500 text-white ring-2 ring-white"><Check className="h-3 w-3" /></span>}
-                </button>
-              )
-              return (
-                <div key={m.id} data-seat={m.id} className="relative flex flex-col items-center gap-2" style={{ marginTop: Math.abs(i - (here.length - 1) / 2) * 6 }}>
-                  {isSpot && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute -inset-6 -top-16 rounded-full pointer-events-none" style={{ background: 'radial-gradient(ellipse at 50% 30%, rgba(255,255,255,.55), transparent 70%)' }} />}
-                  {m.id === me?.id ? seat : (
-                    <Popover>
-                      <PopoverTrigger asChild>{seat}</PopoverTrigger>
-                      <PopoverContent className="w-auto p-1.5 flex items-center gap-1">
-                        {['💵', '🪙', '🍅', '🌹', '☕'].map((it) => (
-                          <Button key={it} variant="ghost" size="icon" className="text-xl" onClick={() => actions.send({ kind: 'throw', from: me!.id, to: m.id, item: it })}>{it}</Button>
-                        ))}
-                        {isHost && <><Separator orientation="vertical" className="h-6 mx-1" /><Button variant="ghost" size="sm" onClick={() => actions.makeHost(m.id)}><Crown /> Make host</Button></>}
-                      </PopoverContent>
-                    </Popover>
-                  )}
-                  <SeatCard value={v} faceUp={shown} delay={i * 0.08} color={c.color} />
-                  <div className="text-center leading-tight">
-                    <div className="text-sm font-semibold text-white drop-shadow">{m.name}{m.id === me?.id ? ' (you)' : ''}</div>
-                    <div className="text-[10px] uppercase tracking-widest text-white/80">{c.name}</div>
-                  </div>
-                  {isSpot && <Badge variant="destructive" className="uppercase tracking-wider">Make your case</Badge>}
-                </div>
-              )
-            })}
-          </section>
+          <PokerTable faceUp={shown} votesIn={roundVotes.length} center={shown && result ? <Results result={result} /> : undefined} seats={here.map((m) => {
+            const v = voteOf(m.id)
+            return {
+              member: m, vote: v, isMe: m.id === me?.id, isHost: room?.hostId === m.id,
+              spotlight: !!(spotlight && v && spotlight.has(v)),
+              mood: shown && verdict === 'blockbuster' ? 'cheer' : shown && verdict === 'plottwist' ? 'shock' : !v && current && !shown ? 'thinking' : 'idle',
+              menu: m.id === me?.id ? undefined : <>
+                {['💵', '🪙', '🍅', '🌹', '☕'].map((it) => <Button key={it} variant="ghost" size="icon" className="text-xl" onClick={() => actions.send({ kind: 'throw', from: me!.id, to: m.id, item: it })}>{it}</Button>)}
+                {isHost && <><Separator orientation="vertical" className="h-6 mx-1" /><Button variant="ghost" size="sm" onClick={() => actions.makeHost(m.id)}><Crown /> Make host</Button></>}
+              </>,
+            }
+          })} />
           {room && !hostHere && <div className="text-center"><Button variant="outline" size="sm" onClick={actions.claimHost}><Crown /> No host right now. Run this job</Button></div>}
 
           {/* Results + host controls */}
           {current && (
-            <div className="flex flex-col items-center gap-3 mt-auto">
-              {shown && result && <Results result={result} />}
+            <div className="flex flex-col items-center gap-3">
               {isHost ? (
                 <div className="flex flex-wrap gap-2 justify-center items-center">
                   {!room?.revealed && <Button size="lg" disabled={roundVotes.length === 0} onClick={actions.reveal}><Eye /> Show the cards <Badge variant="secondary" className="ml-1">{roundVotes.length}/{here.length}</Badge></Button>}
@@ -223,8 +198,8 @@ function Results({ result }: { result: NonNullable<RoomApi['result']> }) {
   const entries = DECK.filter((v) => result.counts[v])
   const max = Math.max(...entries.map((v) => result.counts[v]), 1)
   return (
-    <motion.div initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
-      <Card><CardContent className="px-5 py-3 flex items-end gap-6">
+    <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.6 }}>
+      <Card className="bg-background/95"><CardContent className="px-5 py-3 flex items-end gap-6">
         <div><div className="label">Average</div><div className="text-2xl font-semibold tabular-nums">{result.average ?? '–'}</div></div>
         <div><div className="label">Crew pick</div><div className="text-2xl font-semibold text-accent tabular-nums">{result.suggested ?? '–'}</div></div>
         <Separator orientation="vertical" className="h-12" />

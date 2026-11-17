@@ -24,7 +24,7 @@ export function Lobby({ api, onEnter }: { api: RoomApi; onEnter: () => void }) {
       <div className="min-h-screen grid place-items-center p-6">
         <Card className="w-[440px]">
           <CardHeader className="items-center text-center">
-            <Avatar character={me.character} size={112} mood="cheer" />
+            <Avatar character={me.character} name={me.name} size={112} mood="cheer" />
             <CardTitle className="text-2xl pt-3">Welcome back, {me.name}</CardTitle>
             <CardDescription>{c.name} · {c.role}{me.status === 'away' ? ' · marked away' : ''}</CardDescription>
           </CardHeader>

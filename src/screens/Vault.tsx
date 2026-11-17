@@ -106,7 +106,7 @@ export function Vault({ api, onBack }: { api: RoomApi; onBack: () => void }) {
                   <TableCell>{story.outcome && OUTCOME[story.outcome] ? <Badge variant="outline" className={OUTCOME[story.outcome].cls}>{OUTCOME[story.outcome].text}</Badge> : '–'}{story.rounds > 1 && <span className="ml-2 text-xs text-muted-foreground">{story.rounds} attempts</span>}</TableCell>
                   <TableCell><div className="flex flex-wrap gap-1.5">{open.st.finalVotes(story).map((v) => {
                     const m = nameOf(v.memberId)
-                    return <Badge key={v.id} variant="secondary" className="gap-1.5 font-normal">{m && <Avatar character={m.character} size={16} />}{m?.name ?? '?'} <span className="font-mono font-semibold">{label(v.value)}</span></Badge>
+                    return <Badge key={v.id} variant="secondary" className="gap-1.5 font-normal">{m && <Avatar character={m.character} name={m.name} size={16} />}{m?.name ?? '?'} <span className="font-mono font-semibold">{label(v.value)}</span></Badge>
                   })}</div></TableCell>
                 </TableRow>
               ))}</TableBody>

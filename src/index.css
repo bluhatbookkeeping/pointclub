@@ -40,3 +40,33 @@
 .stamp { border: 6px solid currentColor; border-radius: 10px; padding: .1em .35em; }
 .label { @apply text-xs font-medium uppercase tracking-wider text-muted-foreground; }
 .input { @apply flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50; }
+
+/* Vegas poker table, all in CSS. */
+.vegas-rail {
+  background:
+    radial-gradient(ellipse at 50% 18%, rgba(255,255,255,.22), transparent 45%),
+    radial-gradient(ellipse at 50% 100%, rgba(255,255,255,.08), transparent 50%),
+    linear-gradient(#2b2b2e, #0d0d0f 55%, #1c1c1f);
+  box-shadow: 0 30px 60px -20px rgba(0,0,0,.45), 0 10px 24px rgba(0,0,0,.25), inset 0 2px 1px rgba(255,255,255,.18), inset 0 -3px 6px rgba(0,0,0,.6);
+}
+.vegas-rail::after { /* stitching */
+  content: ''; position: absolute; inset: 3.2% 1.4%; border-radius: 9999px; border: 1.5px dashed rgba(255,255,255,.16);
+}
+.vegas-wood {
+  background:
+    repeating-linear-gradient(97deg, rgba(0,0,0,.12) 0 2px, transparent 2px 9px),
+    repeating-linear-gradient(83deg, rgba(255,255,255,.05) 0 1px, transparent 1px 13px),
+    linear-gradient(#7a2e17, #4a1708 60%, #6b2510);
+  box-shadow: inset 0 2px 2px rgba(255,255,255,.25), inset 0 -2px 3px rgba(0,0,0,.5), 0 0 0 2px #d4af37;
+}
+.vegas-felt {
+  background:
+    radial-gradient(ellipse at 50% 45%, rgba(255,255,255,.16), transparent 62%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23f)'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse at 50% 50%, #12804f, #0a5c38 70%, #07462a);
+  box-shadow: inset 0 6px 18px rgba(0,0,0,.45), inset 0 0 0 1px rgba(0,0,0,.4);
+}
+.vegas-chip {
+  background: repeating-conic-gradient(from 0deg, var(--chip) 0 22deg, #fff 22deg 30deg);
+  box-shadow: 0 1px 0 rgba(0,0,0,.45), inset 0 0 0 3px var(--chip), inset 0 -1px 0 rgba(0,0,0,.3);
+}
