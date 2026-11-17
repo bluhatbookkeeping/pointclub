@@ -243,6 +243,31 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
               <Button variant="ghost" size="sm" onClick={onBack}>Go to the table <ArrowRight /></Button>
             </div>
             <p className="text-muted-foreground">{lineup.length === 0 ? 'Nothing yet.' : `${lineup.length} ${lineup.length === 1 ? 'story' : 'stories'}: ${pointedCount} pointed, ${lineup.length - pointedCount - skippedCount} still to point${skippedCount ? `, ${skippedCount} skipped` : ''}.`}</p>
+            {lineup.length > 0 && (
+              <div className="mt-1 grid gap-0.5 border-t pt-2" data-testid="table-list">
+                {lineup.map((s, i) => {
+                  const locked = !!s.points
+                  return (
+                    <div key={s.id} data-testid="table-row" className={cn('group grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-1 py-1 hover:bg-secondary/50', (locked || s.skipped) && 'opacity-60')}>
+                      <span className="pt-1.5 text-right font-mono text-xs text-muted-foreground">{i + 1}</span>
+                      <div className="min-w-0">
+                        {isHost && !locked && !s.skipped ? <>
+                          <Cell value={s.number} numeric className="w-28 font-mono" textClass="w-auto py-0.5 font-mono text-xs text-muted-foreground" ariaLabel={`Story number for #${s.number}`} onSave={(v) => save(s, { number: v })} />
+                          <Cell value={s.title} textClass="py-0.5 leading-snug break-words" ariaLabel={`Title for #${s.number}`} onSave={(v) => v && save(s, { title: v })} />
+                        </> : <div className="px-2"><div className="font-mono text-xs text-muted-foreground">#{s.number}</div><div className="leading-snug">{s.title}</div></div>}
+                      </div>
+                      <div className="flex flex-col items-end gap-0.5 pt-0.5">
+                        {locked ? <Badge variant="secondary" className="font-mono">{label(s.points!)} pts</Badge>
+                          : s.skipped ? <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">Skipped</Badge>
+                          : isHost ? <LinkCell story={s} onSave={(v) => save(s, { url: v })} />
+                          : s.url ? <a href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2 py-1.5 text-xs text-primary hover:underline">ADO <ExternalLink className="h-3 w-3" /></a> : null}
+                        {locked && s.url && <a href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-1 text-xs text-primary hover:underline">ADO <ExternalLink className="h-3 w-3" /></a>}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
             {lineup.length - pointedCount > 0 && <p className="text-xs text-muted-foreground">Ran out of time? Click <b>Finish session</b> at the table. Stories not pointed can go into next week’s session or back to the backlog.</p>}
           </section>
           </div>

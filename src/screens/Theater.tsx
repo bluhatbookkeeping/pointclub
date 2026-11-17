@@ -220,6 +220,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
                   <span className="flex-1 min-w-0">
                     <span className="block font-mono text-xs text-muted-foreground">#{s.number}</span>
                     <span className={cn('block line-clamp-2 break-words leading-snug', s.id === current?.id && 'text-foreground')} title={s.title}>{s.title}</span>
+                    {isHost && !s.url && !s.points && <span className="block text-[11px] text-amber-700">No ADO link</span>}
                   </span>
                   {s.points && <Badge variant="secondary" className="font-mono">{label(s.points)}</Badge>}
                   {s.skipped && !s.points && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">Skipped</Badge>}
