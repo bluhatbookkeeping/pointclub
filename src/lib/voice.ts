@@ -52,16 +52,47 @@ export function votingMusic(on: boolean, volume = 0.18) {
 }
 
 /** Upbeat credits music. Returns a stop function that fades it out. Respects mute. */
-export function playMusic(name = 'credits', volume = 0.45): () => void {
+export function playMusic(name = 'credits', volume = 0.45, fadeAfterMs?: number): () => void {
   if (isMuted()) return () => {}
   const a = new Audio(`/sfx/sfx/${name}.mp3`)
+  ;(window as any).__creditsMusic = a
   a.volume = volume
   a.play().catch(() => {})
-  return () => {
-    const step = () => { if (a.volume > 0.05) { a.volume = Math.max(0, a.volume - 0.05); setTimeout(step, 60) } else { a.pause() } }
+  let fading = false
+  const stop = () => {
+    if (fading) return; fading = true
+    const step = () => { if (a.volume > 0.03) { a.volume = Math.max(0, a.volume - 0.03); setTimeout(step, 60) } else { a.pause() } }
     step()
   }
+  const t = fadeAfterMs ? setTimeout(stop, fadeAfterMs) : null
+  return () => { if (t) clearTimeout(t); stop() }
 }
+
+/** Upbeat walk-in music while people arrive, before the dealer clicks Let's start. Plays at most 60 seconds. */
+let walkIn: HTMLAudioElement | null = null
+let walkFade: ReturnType<typeof setInterval> | null = null
+let walkCap: ReturnType<typeof setTimeout> | null = null
+let walkDone = false // after the 60-second cap, stay quiet until the next session
+export function walkInMusic(on: boolean, volume = 0.3) {
+  if (on && (isMuted() || walkDone)) on = false
+  if (on && !walkIn) { walkIn = new Audio('/sfx/sfx/credits.mp3'); walkIn.loop = true; walkIn.volume = 0; (window as any).__walkInMusic = walkIn }
+  if (!walkIn) return
+  const a = walkIn
+  if (walkFade) clearInterval(walkFade)
+  if (on && a.paused) {
+    a.play().catch(() => {})
+    if (walkCap) clearTimeout(walkCap)
+    walkCap = setTimeout(() => { walkDone = true; walkInMusic(false) }, 60_000)
+  }
+  if (!on && walkCap) { clearTimeout(walkCap); walkCap = null }
+  walkFade = setInterval(() => {
+    const target = on ? volume : 0
+    a.volume = Math.abs(target - a.volume) < 0.02 ? target : Math.max(0, Math.min(1, a.volume + (target > a.volume ? 0.02 : -0.02)))
+    if (a.volume === target) { if (walkFade) clearInterval(walkFade); walkFade = null; if (!on) a.pause() }
+  }, 60)
+}
+/** A new session (next week) gets walk-in music again. */
+export function resetWalkIn() { walkDone = false }
 
 export const voice = {
   /** A short sound effect clip (chips, chaching, alarm, boom). */

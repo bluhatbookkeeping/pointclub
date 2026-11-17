@@ -9,7 +9,7 @@ import type { RoomApi } from '../lib/useRoom'
 
 export function Credits({ api, sprint, onClose }: { api: RoomApi; sprint: Sprint; onClose: () => void }) {
   const st = sprintStats(sprint, api.stories, api.votes, api.members)
-  useEffect(() => { sfx.fanfare(); return playMusic('credits') }, []) // upbeat music while the credits roll; fades out on close
+  useEffect(() => { sfx.fanfare(); return playMusic('credits', 0.45, 20_000) }, []) // upbeat music while the credits roll; fades as they finish (22 s) or on close
   const lines: [string, string][] = [
     ['Total points', String(st.total)],
     ['Stories pointed', `${st.pointed.length}`],

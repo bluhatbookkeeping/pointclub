@@ -19,7 +19,7 @@ import { SortableList } from '@/components/SortableList'
 import { NewSprint } from './NewSprint'
 import { Credits } from './Credits'
 import { CAST, castById } from '@/lib/cast'
-import { setVoicesEnabled, voice, voicesEnabled, votingMusic } from '@/lib/voice'
+import { resetWalkIn, setVoicesEnabled, voice, voicesEnabled, votingMusic, walkInMusic } from '@/lib/voice'
 import { blockbusterBurst, clearFx, sparkleBurst } from '@/lib/fx'
 import { isMuted, setMuted, sfx } from '@/lib/sounds'
 import { cn, sessionDate, sessionIso, sessionName } from '@/lib/utils'
@@ -62,7 +62,12 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
   const voters = here.filter((m) => room?.hostVotes || m.id !== room?.hostId)
   const allIn = voters.length > 0 && voters.every((m) => roundVotes.some((v) => v.memberId === m.id))
   // Lounge music while people are voting; it fades out once every card is in or the hand is shown.
-  const votingNow = !!current && !current.points && !current.skipped && !room?.revealed && !allIn && me?.status === 'here'
+  // Before the dealer clicks "Let's start": walk-in music while people arrive (a session with points has begun).
+  const begun = !!activeSprint?.begunAt || lineup.some((s) => s.points)
+  useEffect(() => { resetWalkIn() }, [activeSprint?.id])
+  useEffect(() => { walkInMusic(!begun && me?.status === 'here') }, [begun, me?.status, activeSprint?.id])
+  useEffect(() => () => walkInMusic(false), [])
+  const votingNow = begun && !!current && !current.points && !current.skipped && !room?.revealed && !allIn && me?.status === 'here'
   useEffect(() => { votingMusic(votingNow) }, [votingNow])
   useEffect(() => () => votingMusic(false), [])
   const away = members.filter((m) => m.status === 'away')
@@ -224,7 +229,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
             <Button variant="ghost" size="sm" onClick={openVault} title="Past stories (every session's stories and votes)"><FolderOpen /><span className="hidden lg:inline">Past stories</span></Button>
             <IconBtn tip={copied ? 'Copied!' : 'Copy room link'} onClick={copyLink}>{copied ? <Check /> : <Link2 />}</IconBtn>
             <IconBtn tip={voices ? 'Turn voice lines off' : 'Turn voice lines on'} onClick={() => { setVoicesEnabled(!voices); setVoices(!voices) }}>{voices ? <MessageSquare /> : <MessageSquareOff />}</IconBtn>
-            <IconBtn tip={muted ? 'Unmute' : 'Mute'} onClick={() => { setMuted(!muted); setMute(!muted); votingMusic(muted ? votingNow : false) }}>{muted ? <VolumeX /> : <Volume2 />}</IconBtn>
+            <IconBtn tip={muted ? 'Unmute' : 'Mute'} onClick={() => { setMuted(!muted); setMute(!muted); votingMusic(muted ? votingNow : false); walkInMusic(muted ? !begun : false) }}>{muted ? <VolumeX /> : <Volume2 />}</IconBtn>
             <IconBtn tip="My seat (lobby)" onClick={onLobby}>{me ? <Avatar character={me.character} name={me.name} size={26} /> : <UserRound />}</IconBtn>
           </div>
         </div>
@@ -286,6 +291,16 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
 
         {/* Main */}
         <main className="flex-1 min-w-0 flex flex-col gap-4 p-6">
+          {!begun && (
+            <div className="flex items-center gap-4 rounded-xl border-2 border-primary/30 bg-primary/[0.06] px-5 py-4" data-testid="start-banner">
+              <div className="flex-1">
+                <div className="text-lg font-semibold">{activeSprint ? sessionName(activeSprint.name) : 'Refinement session'} · {sessionDate(activeSprint)}</div>
+                <div className="text-sm text-muted-foreground">{isHost ? 'Everyone here? Start when the team is seated.' : 'Grab a seat. The dealer will start in a moment.'}</div>
+              </div>
+              {isHost ? <Button size="lg" onClick={() => { walkInMusic(false); actions.beginSession() }} data-testid="lets-start">Let's start <ArrowRight /></Button>
+                : <span className="text-sm font-medium text-muted-foreground">Waiting for the dealer to start</span>}
+            </div>
+          )}
           <Card>
             <CardContent className="px-5 py-4 flex items-start gap-4">
               {current ? <>
@@ -364,7 +379,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
               {isHost && nextUnpointed && <Button size="sm" onClick={() => actions.selectStory(nextUnpointed.id)}>Next story <ArrowRight /></Button>}
             </div>
           )}
-          {current && !current.points && !current.skipped && (
+          {begun && current && !current.points && !current.skipped && (
             <div className="flex flex-col items-center gap-3">
               {isHost ? (
                 <div className="flex flex-wrap gap-2 justify-center items-center">
@@ -399,7 +414,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
           )}
 
           {/* Hand */}
-          {!current || current.points || current.skipped ? null : isDealer ? (
+          {!begun || !current || current.points || current.skipped ? null : isDealer ? (
             <div className="flex flex-wrap items-center justify-center gap-3 pb-4 text-sm text-muted-foreground" data-testid="dealer-panel">
               <span>You're the dealer: the team votes, you show the hand.</span>
               <span className="font-medium text-foreground">{allIn ? 'All cards are in.' : `${roundVotes.length} of ${voters.length} cards in. You can show the hand anytime; missing cards are left out.`}</span>

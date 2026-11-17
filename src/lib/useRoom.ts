@@ -275,7 +275,14 @@ export function useRoom(roomId: string) {
       const missing = stories.filter((s) => !s.url)
       if (missing.length) await db.upsertStories(missing.map((s) => ({ ...s, url: buildAdoUrl(adoPattern, s.number) })))
     },
-    async renameSprint(p: Partial<Pick<Sprint, 'name' | 'title' | 'meetingDate'>>) { if (activeSprint) await db.upsertSprint({ ...activeSprint, ...p }) },
+    /** Dealer: "Let's start". Ends the walk-in music for everyone and opens the first story waiting to be pointed. */
+    async beginSession() {
+      if (!activeSprint) return
+      await db.upsertSprint({ ...activeSprint, begunAt: Date.now() })
+      const first = lineup.find(isOpen)
+      if (first && (!current || current.sprintId !== activeSprint.id)) await patchRoom({ currentStoryId: first.id, revealed: false, round: first.rounds })
+    },
+    async renameSprint(p: Partial<Pick<Sprint, 'name' | 'title' | 'meetingDate' | 'begunAt'>>) { if (activeSprint) await db.upsertSprint({ ...activeSprint, ...p }) },
     /** Finish this session. Unpointed stories go back to the top of the backlog, or into the Next session list. */
     async closeAndStartNext(name: string, title: string, carryTo: 'backlog' | 'next' = 'backlog', meetingDate: string | null = null) {
       if (!room) return
