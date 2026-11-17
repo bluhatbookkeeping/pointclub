@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowUpToLine, Check, Circle, ExternalLink, SkipForward, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowUpToLine, Check, Circle, ExternalLink, Pencil, SkipForward, Trash2 } from 'lucide-react'
 import { Logo } from '@/components/Logo'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -7,25 +7,51 @@ import { Input } from '@/components/ui/input'
 import { SortableList } from '@/components/SortableList'
 import { NO_AUTOFILL, StoryImport } from '@/components/StoryImport'
 import { label } from '@/components/TicketCard'
-import { buildAdoUrl, toAdoPattern } from '@/lib/parseStories'
+import { buildAdoUrl, stripLinks, toAdoPattern } from '@/lib/parseStories'
 import { cn, sessionName } from '@/lib/utils'
 import type { Story } from '@/lib/types'
 import type { RoomApi } from '@/lib/useRoom'
 
-/** A text box that saves when you leave it or press Enter (nothing is lost by clicking elsewhere). */
-function Cell({ value, onSave, className, placeholder, ariaLabel, numeric }: {
-  value: string; onSave: (v: string) => void; className?: string; placeholder?: string; ariaLabel: string; numeric?: boolean
+/** Shows plain text; click to edit. Saves when you leave the box or press Enter (Escape cancels). */
+function Cell({ value, onSave, className, textClass, placeholder, ariaLabel, numeric, display }: {
+  value: string; onSave: (v: string) => void; className?: string; textClass?: string; placeholder?: string; ariaLabel: string; numeric?: boolean; display?: React.ReactNode
 }) {
+  const [editing, setEditing] = useState(false)
   const [v, setV] = useState(value)
-  useEffect(() => setV(value), [value])
-  const commit = () => { const t = v.trim(); if (t !== value) { if (numeric && !t) { setV(value); return } onSave(t) } }
-  return (
-    <Input {...NO_AUTOFILL} value={v} placeholder={placeholder} aria-label={ariaLabel} title={v}
-      className={cn('h-8 border-transparent bg-transparent px-2 shadow-none hover:border-input focus:border-input focus:bg-background', className)}
-      inputMode={numeric ? 'numeric' : undefined}
-      onChange={(e) => setV(numeric ? e.target.value.replace(/\D/g, '') : e.target.value)}
-      onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setV(value); (e.target as HTMLInputElement).blur() } }} />
+  useEffect(() => { if (!editing) setV(value) }, [value, editing])
+  const commit = () => { setEditing(false); const t = v.trim(); if (t !== value && !(numeric && !t)) onSave(t); else setV(value) }
+  if (!editing) return (
+    <button type="button" aria-label={ariaLabel} title="Click to edit" onClick={() => setEditing(true)}
+      className={cn('min-h-8 w-full rounded-md px-2 py-1 text-left hover:bg-background hover:ring-1 hover:ring-input', textClass)}>
+      {display ?? (value || <span className="text-muted-foreground">{placeholder}</span>)}
+    </button>
   )
+  return (
+    <Input {...NO_AUTOFILL} autoFocus value={v} placeholder={placeholder} aria-label={ariaLabel}
+      className={cn('h-8 px-2', className)} inputMode={numeric ? 'numeric' : undefined}
+      onChange={(e) => setV(numeric ? e.target.value.replace(/\D/g, '') : e.target.value)}
+      onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setV(value); setEditing(false) } }} />
+  )
+}
+
+/** "ADO ↗" when the story has a link (with a small edit button), "Add link" when it doesn't. */
+function LinkCell({ story, onSave }: { story: Story; onSave: (v: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  if (editing || !story.url) {
+    if (!editing) return <button type="button" className="px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:underline" aria-label={`ADO link for #${story.number}`} onClick={() => setEditing(true)}>Add link</button>
+    return <LinkInput story={story} onDone={(v) => { setEditing(false); if (v !== (story.url ?? '')) onSave(v) }} />
+  }
+  return (
+    <span className="flex items-center gap-1 px-2 py-1.5 text-xs">
+      <a href={story.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-primary hover:underline" title={story.url}>ADO <ExternalLink className="h-3 w-3" /></a>
+      <button type="button" className="text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100" aria-label={`ADO link for #${story.number}`} title="Change link" onClick={() => setEditing(true)}><Pencil className="h-3 w-3" /></button>
+    </span>
+  )
+}
+function LinkInput({ story, onDone }: { story: Story; onDone: (v: string) => void }) {
+  const [v, setV] = useState(story.url ?? '')
+  return <Input {...NO_AUTOFILL} autoFocus value={v} placeholder="Paste ADO link" className="h-8 px-2 font-mono text-xs" aria-label={`ADO link for #${story.number}`}
+    onChange={(e) => setV(e.target.value)} onBlur={() => onDone(v.trim())} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') onDone(story.url ?? '') }} />
 }
 
 /**
@@ -38,6 +64,13 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
   const [fresh, setFresh] = useState<string[]>([])
   const [linkNote, setLinkNote] = useState<string | null>(null)
   useEffect(() => setPicked((p) => p.filter((id) => backlog.some((s) => s.id === id))), [backlog])
+  // Titles read before the link fix may end in broken link text ("… On hold https: /"). Clean them once.
+  const cleaned = useRef(false)
+  useEffect(() => {
+    if (!isHost || cleaned.current) return
+    cleaned.current = true
+    for (const s of [...backlog, ...lineup]) { const t = stripLinks(s.title); if (t && t !== s.title) actions.editStory({ ...s, title: t }) }
+  }, [isHost]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const add = async (rows: Parameters<typeof actions.addStories>[0]) => {
     const r = await actions.addStories(rows, room?.adoPattern ?? '', 'backlog')
@@ -62,7 +95,8 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
   }
 
   const moveIn = async (ids: string[]) => { await actions.moveToSession(ids); setPicked([]) }
-  const sessionLabel = activeSprint ? sessionName(activeSprint.name) : 'This session'
+  const sessionLabel = activeSprint ? sessionName(activeSprint.name) : 'Session'
+  const pointedCount = lineup.filter((s) => s.points).length
 
   return (
     <div className="min-h-screen">
@@ -77,7 +111,7 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
       <div className="mx-auto grid max-w-[1400px] gap-6 p-6">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Plan stories</h1>
-          <p className="text-muted-foreground">Keep every story in the <b className="text-foreground">Backlog</b>, ranked top to bottom. Move the ones you'll point next into <b className="text-foreground">This session</b>.</p>
+          <p className="text-muted-foreground">Keep every story in the <b className="text-foreground">Backlog</b>, ranked top to bottom. Move the ones you'll point at the next meeting into <b className="text-foreground">Next session</b>.</p>
         </div>
 
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
@@ -87,7 +121,7 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
               <h2 className="text-lg font-semibold">Backlog <span className="text-muted-foreground">({backlog.length})</span></h2>
               {isHost && picked.length > 0 && (
                 <Button size="sm" className="ml-auto" onClick={() => moveIn(backlog.filter((s) => picked.includes(s.id)).map((s) => s.id))}>
-                  Move {picked.length} to this session <ArrowRight />
+                  Move {picked.length} to next session <ArrowRight />
                 </Button>
               )}
             </div>
@@ -99,36 +133,36 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
               <p className="py-8 text-center text-sm text-muted-foreground">The backlog is empty. {isHost ? 'Add stories above.' : ''}</p>
             ) : (
               <div className="grid gap-0.5">
-                <div className="grid grid-cols-[1rem_1.5rem_1rem_5.5rem_minmax(0,1fr)_minmax(0,8.5rem)_4.75rem] items-center gap-2 px-1.5 pb-1 text-xs font-medium text-muted-foreground">
-                  <span /><span className="text-right">#</span><span /><span className="px-2">Story</span><span className="px-2">Title</span><span className="px-2">ADO link</span><span />
+                <div className="grid grid-cols-[1rem_1.5rem_1rem_5.5rem_minmax(0,1fr)_5.5rem_4.75rem] items-center gap-2 px-1.5 pb-1 text-xs font-medium text-muted-foreground">
+                  <span /><span className="text-right">#</span><span /><span className="px-2">Story</span><span className="px-2">Title</span><span className="px-2">ADO</span><span />
                 </div>
                 <SortableList items={backlog} enabled={isHost} onReorder={actions.reorder}
                   renderItem={(s, i, handle) => (
-                    <div data-testid="plan-backlog-row" className={cn('group grid grid-cols-[1rem_1.5rem_1rem_5.5rem_minmax(0,1fr)_minmax(0,8.5rem)_4.75rem] items-center gap-2 rounded-md px-1.5 py-0.5 transition-colors hover:bg-secondary/50',
+                    <div data-testid="plan-backlog-row" className={cn('group grid grid-cols-[1rem_1.5rem_1rem_5.5rem_minmax(0,1fr)_5.5rem_4.75rem] items-start gap-2 rounded-md px-1.5 py-1 transition-colors hover:bg-secondary/50',
                       fresh.includes(s.id) && 'bg-emerald-50 ring-1 ring-emerald-200', picked.includes(s.id) && 'bg-primary/[0.07]')}>
                       {isHost ? handle : <span />}
-                      <span className="text-right font-mono text-xs text-muted-foreground">{i + 1}</span>
-                      {isHost ? <input type="checkbox" className="h-4 w-4 accent-[hsl(var(--primary))]" checked={picked.includes(s.id)} aria-label={`Pick #${s.number}`}
+                      <span className="pt-2 text-right font-mono text-xs text-muted-foreground">{i + 1}</span>
+                      {isHost ? <input type="checkbox" className="mt-2 h-4 w-4 accent-[hsl(var(--primary))]" checked={picked.includes(s.id)} aria-label={`Pick #${s.number}`}
                         onChange={(e) => setPicked((p) => (e.target.checked ? [...p, s.id] : p.filter((x) => x !== s.id)))} /> : <span />}
                       {isHost ? <>
-                        <Cell value={s.number} numeric className="font-mono" ariaLabel={`Story number for #${s.number}`} onSave={(v) => save(s, { number: v })} />
+                        <Cell value={s.number} numeric className="font-mono" textClass="font-mono text-sm" ariaLabel={`Story number for #${s.number}`} onSave={(v) => save(s, { number: v })} />
                         <div className="min-w-0">
-                          <Cell value={s.title} ariaLabel={`Title for #${s.number}`} onSave={(v) => v && save(s, { title: v })} />
+                          <Cell value={s.title} textClass="text-sm leading-snug line-clamp-2 break-words" ariaLabel={`Title for #${s.number}`} onSave={(v) => v && save(s, { title: v })} />
                           {s.note && <div className="truncate px-2 text-xs text-amber-800" title={s.note}>{s.note}</div>}
                         </div>
-                        <Cell value={s.url ?? ''} placeholder="Paste link" className="font-mono text-xs" ariaLabel={`ADO link for #${s.number}`} onSave={(v) => save(s, { url: v })} />
+                        <LinkCell story={s} onSave={(v) => save(s, { url: v })} />
                       </> : <>
                         <span className="px-2 font-mono text-sm">#{s.number}</span>
-                        <span className="min-w-0 px-2 text-sm">{s.title}</span>
-                        <span className="truncate px-2 text-xs">{s.url && <a href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:underline"><ExternalLink className="h-3 w-3" /> Open in ADO</a>}</span>
+                        <span className="min-w-0 px-2 py-1 text-sm leading-snug">{s.title}</span>
+                        <span className="px-2 py-1 text-xs">{s.url && <a href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">ADO <ExternalLink className="h-3 w-3" /></a>}</span>
                       </>}
                       {isHost ? (
-                        <span className="flex items-center justify-end gap-1">
+                        <span className="flex items-center justify-end gap-1 pt-1">
                           <button className={cn('rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground', i === 0 && 'invisible')} title="Move to top" aria-label={`Move #${s.number} to top`}
                             onClick={() => actions.reorder([s.id, ...backlog.filter((x) => x.id !== s.id).map((x) => x.id)])}><ArrowUpToLine className="h-3.5 w-3.5" /></button>
                           <button className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" title="Delete from Point Club" aria-label={`Delete #${s.number}`}
                             onClick={() => { if (confirm(`Delete #${s.number} "${s.title}"?\nIt will be removed from Point Club (not from ADO).`)) actions.removeStory(s.id) }}><Trash2 className="h-3.5 w-3.5" /></button>
-                          <button className="rounded p-1 text-primary hover:bg-primary/10" title="Move to this session" aria-label={`Move #${s.number} to this session`}
+                          <button className="rounded p-1 text-primary hover:bg-primary/10" title="Move to next session" aria-label={`Move #${s.number} to next session`}
                             onClick={() => moveIn([s.id])}><ArrowRight className="h-4 w-4" /></button>
                         </span>
                       ) : <span />}
@@ -141,11 +175,11 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
           {/* THIS SESSION */}
           <section className="grid gap-3 rounded-xl border-2 border-primary/30 bg-card p-4 shadow-sm lg:sticky lg:top-20" data-testid="session-col">
             <div>
-              <h2 className="text-lg font-semibold">This session <span className="text-muted-foreground">({lineup.length})</span></h2>
-              <p className="text-xs text-muted-foreground">{sessionLabel}. The stories the team points next, in voting order.</p>
+              <h2 className="text-lg font-semibold">Next session <span className="font-normal text-muted-foreground">· {sessionLabel}</span></h2>
+              <p className="text-xs text-muted-foreground" data-testid="session-count">{lineup.length === 0 ? 'No stories yet' : `${lineup.length} ${lineup.length === 1 ? 'story' : 'stories'}, in voting order`}{pointedCount ? ` · ${pointedCount} pointed` : ''}</p>
             </div>
             {lineup.length === 0 ? (
-              <p className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">Move stories here from the backlog<br />with <ArrowRight className="inline h-3.5 w-3.5" /> or the checkboxes.</p>
+              <p className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">Pick the stories for the next meeting.<br />Tick them in the backlog and click <b>Move to next session</b>,<br />or use <ArrowRight className="inline h-3.5 w-3.5" /> on a row.</p>
             ) : (
               <div className="grid gap-0.5">
                 <SortableList items={lineup} enabled={isHost} canDrag={(s) => !s.points && !s.skipped} onReorder={actions.reorder}

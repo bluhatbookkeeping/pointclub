@@ -12,6 +12,14 @@ function asNumber(tok: string | undefined): string | null {
   return t.replace(/[Oo]/g, '0').replace(/[Il]/g, '1').replace(/S/g, '5')
 }
 
+/** Remove a link at the end of a title, including the broken forms OCR produces ("https: /…", "http ://…", "https//…", "ht"). */
+export function stripLinks(title: string): string {
+  return title
+    .replace(/\s*\b(?:https?|hftps?|htps?|nttps?)\s*[:;.]?\s*\/.*$/i, '')
+    .replace(/\s+(?:https?|ht|htt|https?:?)$/i, '')
+    .trim()
+}
+
 /** Drop icon/table junk OCR leaves in front of a title (e.g. "©", "|", "B"), keep real words. */
 function cleanTitle(title: string): string {
   let t = title.replace(/^[\s:.\-–—|)\]]+/, '')
@@ -23,7 +31,7 @@ function cleanTitle(title: string): string {
     if (!junk) break
     t = rest
   }
-  return t
+  return stripLinks(t)
     .replace(/\s*\|\s*\d+(\.\d+)?\s*(pts?|points?)?\s*$/i, '') // trailing "| 5" effort column
     .replace(/\s+\d+(\.\d+)?\s*(pts?|points?)$/i, '') // trailing "5 pts"
     .replace(/[\s|]+$/, '')

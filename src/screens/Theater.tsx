@@ -164,7 +164,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
             {mode === 'local' && <Tooltip><TooltipTrigger asChild><Badge variant="destructive" className="whitespace-nowrap">Demo mode</Badge></TooltipTrigger><TooltipContent className="max-w-xs whitespace-normal">Team mode is off, so only tabs in this browser share the room. On Vercel, set VITE_BACKEND = api and redeploy.</TooltipContent></Tooltip>}
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
-            {isHost && <Button variant="outline" size="sm" onClick={openPlanner} title="Plan stories: add stories, rank the backlog, pick this session"><ListChecks /><span className="hidden lg:inline">Plan stories</span></Button>}
+            {isHost && <Button variant="outline" size="sm" onClick={openPlanner} title="Plan stories: add stories, rank the backlog, pick the next session"><ListChecks /><span className="hidden lg:inline">Plan stories</span></Button>}
             {isHost && <Button variant="outline" size="sm" onClick={() => setShowNewSprint(true)} title="Finish this session and save it to Past stories"><Clapperboard /><span className="hidden lg:inline">Finish session</span></Button>}
             {isHost && (
               <Popover onOpenChange={(o) => o && setInvite(inviteEmail())}>
@@ -195,9 +195,10 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
         <aside className="w-64 shrink-0 border-r">
           <div className="sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto overflow-x-hidden p-3">
             <div className="mb-2 flex items-baseline justify-between px-2">
-              <span className="label">This session ({lineup.length})</span>
+              <span className="label" data-testid="session-label">{(() => { const done = lineup.filter((x) => x.points).length; const n = lineup.length
+                return done ? `${activeSprint ? sessionName(activeSprint.name) : 'Session'} · ${done} of ${n} pointed` : `Next session · ${n === 0 ? 'no stories yet' : `${n} ${n === 1 ? 'story' : 'stories'}`}` })()}</span>
             </div>
-            {lineup.length === 0 && <p className="text-sm text-muted-foreground px-2">No stories in this session yet. {isHost ? 'Open Plan stories to add some.' : 'Waiting for the host.'}</p>}
+            {lineup.length === 0 && <p className="text-sm text-muted-foreground px-2">{isHost ? 'Pick stories on the Plan stories page.' : 'Waiting for the host to pick stories.'}</p>}
             <nav className="grid gap-0.5">
               <SortableList items={lineup} enabled={isHost} canDrag={(s) => !s.points && !s.skipped} onReorder={actions.reorder}
                 renderItem={(s, _i, handle) => (
@@ -268,7 +269,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
                   {isHost && <Button variant="outline" onClick={openPlanner}><ListChecks /> Plan stories</Button>}
                   {isHost && <Button onClick={() => setShowNewSprint(true)}><Clapperboard /> Finish session</Button>}
                 </div>
-              ) : <div className="flex flex-1 items-center gap-4"><span className="flex-1 text-muted-foreground">{lineup.length ? 'Pick a story on the left to start.' : isHost ? (backlog.length ? 'Move stories from the backlog into this session to start.' : 'No stories yet. Add some to start.') : 'Waiting for the host…'}</span>
+              ) : <div className="flex flex-1 items-center gap-4"><span className="flex-1 text-muted-foreground">{lineup.length ? 'Pick a story on the left to start.' : isHost ? (backlog.length ? 'Pick the stories for this meeting on the Plan stories page.' : 'No stories yet. Add some to start.') : 'Waiting for the host…'}</span>
                   {isHost && !lineup.length && <Button onClick={openPlanner}><ListChecks /> Plan stories <ArrowRight /></Button>}
                   {isHost && lineup.length > 0 && nextUnpointed && <Button onClick={() => actions.selectStory(nextUnpointed.id)}>Start with #{nextUnpointed.number} <ArrowRight /></Button>}
                 </div>}

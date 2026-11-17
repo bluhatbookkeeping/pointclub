@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { judge } from './consensus'
-import { parseStories, buildAdoUrl, toAdoPattern } from './parseStories'
+import { parseStories, buildAdoUrl, toAdoPattern, stripLinks } from './parseStories'
 import { onlyNew, reorderRows } from './useRoom'
 
 describe('judge', () => {
@@ -94,4 +94,19 @@ describe('reorderRows', () => {
 describe('onlyNew', () => {
   it('skips numbers already planned and repeats within the batch', () =>
     expect(onlyNew([{ number: '1' }], [{ number: '1' }, { number: '2' }, { number: '2' }, { number: '3' }]).map((r) => r.number)).toEqual(['2', '3']))
+})
+
+describe('stripLinks', () => {
+  it('removes links OCR left at the end of a title', () => {
+    expect(stripLinks('Provider Portal | Turn on FOH agencies - On hold https: /')).toBe('Provider Portal | Turn on FOH agencies - On hold')
+    expect(stripLinks('Open FOH appointment in UHP - On hold ht')).toBe('Open FOH appointment in UHP - On hold')
+    expect(stripLinks('Fix login http ://qtcado.x/y?workitem=1')).toBe('Fix login')
+    expect(stripLinks('Fix login https//qtcado')).toBe('Fix login')
+  })
+  it('leaves normal titles alone', () => {
+    expect(stripLinks('Bug ExamTrak | Need Help Signing in? link does not open')).toBe('Bug ExamTrak | Need Help Signing in? link does not open')
+    expect(stripLinks('Add HTTPS redirect for the portal')).toBe('Add HTTPS redirect for the portal')
+  })
+  it('parser drops a broken trailing link', () =>
+    expect(parseStories('650454 Provider Portal | Turn on FOH - On hold https: /')).toEqual([{ number: '650454', title: 'Provider Portal | Turn on FOH - On hold' }]))
 })
