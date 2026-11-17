@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+body {
+  margin: 0; min-height: 100vh; font-family: Inter, system-ui, sans-serif; color: #f6f1e7;
+  background:
+    radial-gradient(ellipse at 50% -10%, rgba(255, 209, 102, .18), transparent 55%),
+    repeating-linear-gradient(90deg, #2a0b13 0 18px, #1f0a10 18px 36px);
+}
+.curtain-l, .curtain-r {
+  position: fixed; top: 0; bottom: 0; width: 56px; z-index: 0; pointer-events: none;
+  background: repeating-linear-gradient(90deg, #5c1426 0 10px, #3a0f1a 10px 20px);
+  box-shadow: inset -12px 0 24px rgba(0,0,0,.6);
+}
+.curtain-l { left: 0 } .curtain-r { right: 0; transform: scaleX(-1) }
+.marquee-frame { position: relative; border: 3px solid #f4b400; border-radius: 18px; background: linear-gradient(#2b0d15, #1a070c); }
+.marquee-frame::before {
+  content: ''; position: absolute; inset: -9px; border-radius: 24px; pointer-events: none;
+  background-image: radial-gradient(circle, #ffe8a3 2.5px, transparent 3.5px); background-size: 18px 18px;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+  padding: 6px; animation: chase 1.2s linear infinite;
+}
+@keyframes chase { to { background-position: 18px 0 } }
+.ticket {
+  --notch: radial-gradient(circle at 0 50%, transparent 9px, #000 10px) left / 51% 100% no-repeat,
+           radial-gradient(circle at 100% 50%, transparent 9px, #000 10px) right / 51% 100% no-repeat;
+  -webkit-mask: var(--notch); mask: var(--notch);
+}
+.film-grain::after {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 60; opacity: .07;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.9'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.btn { @apply rounded-xl px-4 py-2 font-semibold transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none; }
+.btn-gold { @apply btn bg-marquee-400 text-velvet-950 hover:bg-marquee-300 shadow-bulb; }
+.btn-ghost { @apply btn bg-white/5 hover:bg-white/10 border border-white/10; }
+.panel { @apply rounded-2xl bg-black/35 border border-white/10 backdrop-blur; }
+.input { @apply rounded-lg bg-black/40 border border-white/15 px-3 py-2 outline-none focus:border-marquee-400; }
