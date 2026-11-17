@@ -201,6 +201,8 @@ export function useRoom(roomId: string) {
     async setNextCount(n: number) { await patchRoom({ nextCount: Math.max(1, Math.min(30, Math.round(n))) }) },
     async editStory(s: Story) { putLocal([s]); await db.upsertStories([s]) },
     async removeStory(id: string) {
+      storiesRef.current = storiesRef.current.filter((s) => s.id !== id)
+      setSnap((p) => ({ ...p, stories: p.stories.filter((s) => s.id !== id) })) // disappears right away
       await db.removeStory(id)
       if (room?.currentStoryId === id) await patchRoom({ currentStoryId: lineup.find((s) => s.id !== id)?.id ?? null, revealed: false, round: 1 })
     },

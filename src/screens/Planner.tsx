@@ -95,6 +95,14 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
   }
 
   const moveIn = async (ids: string[]) => { await actions.moveToSession(ids); setPicked([]) }
+  const deletePicked = async () => {
+    const list = backlog.filter((s) => picked.includes(s.id))
+    if (!list.length) return
+    const preview = list.slice(0, 5).map((s) => `#${s.number} ${s.title}`).join('\n') + (list.length > 5 ? `\n…and ${list.length - 5} more` : '')
+    if (!confirm(`Delete ${list.length} ${list.length === 1 ? 'story' : 'stories'} from Point Club? (Not from ADO.)\n\n${preview}`)) return
+    setPicked([])
+    for (const s of list) await actions.removeStory(s.id)
+  }
   const sessionLabel = activeSprint ? sessionName(activeSprint.name) : 'Session'
   const pointedCount = lineup.filter((s) => s.points).length
 
@@ -119,11 +127,6 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
           <section className="grid gap-3 rounded-xl border bg-card p-4 shadow-sm" data-testid="backlog-col">
             <div className="flex items-center gap-3">
               <h2 className="text-lg font-semibold">Backlog <span className="text-muted-foreground">({backlog.length})</span></h2>
-              {isHost && picked.length > 0 && (
-                <Button size="sm" className="ml-auto" onClick={() => moveIn(backlog.filter((s) => picked.includes(s.id)).map((s) => s.id))}>
-                  Move {picked.length} to next session <ArrowRight />
-                </Button>
-              )}
             </div>
 
             {isHost && <div className="rounded-lg bg-secondary/40 p-3"><StoryImport onAdd={add} /></div>}
@@ -133,6 +136,27 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
               <p className="py-8 text-center text-sm text-muted-foreground">The backlog is empty. {isHost ? 'Add stories above.' : ''}</p>
             ) : (
               <div className="grid gap-0.5">
+                {isHost && (
+                  <div className={cn('sticky top-14 z-10 -mx-1.5 mb-1 flex min-h-11 flex-wrap items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors',
+                    picked.length ? 'border-primary/40 bg-primary/[0.06]' : 'bg-card')} data-testid="bulk-bar">
+                    <input type="checkbox" className="h-4 w-4 accent-[hsl(var(--primary))]" aria-label="Select all"
+                      checked={picked.length > 0 && picked.length === backlog.length}
+                      ref={(el) => { if (el) el.indeterminate = picked.length > 0 && picked.length < backlog.length }}
+                      onChange={(e) => setPicked(e.target.checked ? backlog.map((s) => s.id) : [])} />
+                    {picked.length === 0 ? (
+                      <span className="text-muted-foreground">Tick stories to move them to the next session or delete them, several at once.</span>
+                    ) : <>
+                      <span className="font-medium">{picked.length} selected</span>
+                      <Button size="sm" onClick={() => moveIn(backlog.filter((s) => picked.includes(s.id)).map((s) => s.id))}>
+                        Move to next session <ArrowRight />
+                      </Button>
+                      <Button size="sm" variant="outline" className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={deletePicked}>
+                        <Trash2 /> Delete {picked.length}
+                      </Button>
+                      <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setPicked([])}>Clear</Button>
+                    </>}
+                  </div>
+                )}
                 <div className="grid grid-cols-[1rem_1.5rem_1rem_5.5rem_minmax(0,1fr)_5.5rem_4.75rem] items-center gap-2 px-1.5 pb-1 text-xs font-medium text-muted-foreground">
                   <span /><span className="text-right">#</span><span /><span className="px-2">Story</span><span className="px-2">Title</span><span className="px-2">ADO</span><span />
                 </div>
