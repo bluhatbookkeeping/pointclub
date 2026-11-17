@@ -3,25 +3,20 @@ import { motion } from 'framer-motion'
 import { sfx } from '../lib/sounds'
 import type { Outcome } from '../lib/types'
 
-/** Letterbox bars slide in, then a big 3 · 2 · 1 over a light flash. */
+/** A quick beat before the cards flip: "Here's what the team thinks." (about a second, no countdown). */
 export function Countdown({ onDone }: { onDone: () => void }) {
-  const [n, setN] = useState(3)
   const done = useRef(onDone); done.current = onDone
   useEffect(() => {
-    sfx.whir(); sfx.beep()
-    const t1 = setTimeout(() => { setN(2); sfx.beep() }, 800)
-    const t2 = setTimeout(() => { setN(1); sfx.beep(true) }, 1600)
-    const t3 = setTimeout(() => done.current(), 2400)
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
+    sfx.whir()
+    const t = setTimeout(() => done.current(), 900)
+    return () => clearTimeout(t)
   }, [])
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 grid place-items-center bg-white/60 backdrop-blur-sm">
-      <motion.div className="absolute top-0 left-0 right-0 bg-ink" initial={{ height: 0 }} animate={{ height: '11vh' }} />
-      <motion.div className="absolute bottom-0 left-0 right-0 bg-ink" initial={{ height: 0 }} animate={{ height: '11vh' }} />
-      <div className="text-center">
-        <div className="label !text-ink/60">Cards on the table in</div>
-        <motion.div key={n} initial={{ scale: 1.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="font-display text-[11rem] font-bold leading-none text-ink">{n}</motion.div>
-      </div>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="fixed inset-0 z-50 grid place-items-center bg-white/50 backdrop-blur-[2px] pointer-events-none">
+      <motion.div initial={{ scale: 0.85, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 420, damping: 24 }}
+        className="rounded-2xl bg-ink px-8 py-5 text-center shadow-2xl" data-testid="reveal-banner">
+        <div className="font-display text-4xl font-bold tracking-tight text-white sm:text-5xl">Here's what the team thinks.</div>
+      </motion.div>
     </motion.div>
   )
 }

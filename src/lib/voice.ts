@@ -33,6 +33,36 @@ function fx(name: string, volume = 0.6) {
 }
 
 const POINT_LINES = new Set(['1', '2', '3', '5', '8', '13', '21'])
+/** Quiet looping music while the team votes. One shared player; fades in and out. Respects mute. */
+let thinking: HTMLAudioElement | null = null
+let fadeT: ReturnType<typeof setInterval> | null = null
+export function votingMusic(on: boolean, volume = 0.18) {
+  if (on && isMuted()) on = false
+  if (on && !thinking) { thinking = new Audio('/sfx/sfx/thinking.mp3'); thinking.loop = true; thinking.volume = 0; (window as any).__votingMusic = thinking }
+  if (!thinking) return
+  const a = thinking
+  if (fadeT) clearInterval(fadeT)
+  if (on && a.paused) a.play().catch(() => {})
+  fadeT = setInterval(() => {
+    const target = on ? volume : 0
+    const v = a.volume + (target > a.volume ? 0.02 : -0.02)
+    a.volume = Math.max(0, Math.min(1, Math.abs(target - a.volume) < 0.02 ? target : v))
+    if (a.volume === target) { if (fadeT) clearInterval(fadeT); fadeT = null; if (!on) a.pause() }
+  }, 50)
+}
+
+/** Upbeat credits music. Returns a stop function that fades it out. Respects mute. */
+export function playMusic(name = 'credits', volume = 0.45): () => void {
+  if (isMuted()) return () => {}
+  const a = new Audio(`/sfx/sfx/${name}.mp3`)
+  a.volume = volume
+  a.play().catch(() => {})
+  return () => {
+    const step = () => { if (a.volume > 0.05) { a.volume = Math.max(0, a.volume - 0.05); setTimeout(step, 60) } else { a.pause() } }
+    step()
+  }
+}
+
 export const voice = {
   /** A short sound effect clip (chips, chaching, alarm, boom). */
   effect(name: string, volume = 0.6) { fx(name, volume) },

@@ -4,7 +4,7 @@ import { label } from '@/components/TicketCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { sessionName } from '@/lib/utils'
+import { sessionDate, sessionName } from '@/lib/utils'
 import type { RoomApi } from '@/lib/useRoom'
 
 /** Read-only story list for the upcoming session: share it before the meeting instead of an email. */
@@ -26,7 +26,7 @@ export function Agenda({ api }: { api: RoomApi }) {
         <Card>
           <CardHeader>
             <CardDescription>Story pointing agenda</CardDescription>
-            <CardTitle className="text-2xl">{sessionName(activeSprint?.name)}</CardTitle>
+            <CardTitle className="text-2xl">{sessionName(activeSprint?.name)}{activeSprint ? ` · ${sessionDate(activeSprint)}` : ''}</CardTitle>
             <CardDescription>
               {lineup.length} {lineup.length === 1 ? 'story' : 'stories'} to point
               {pointed.length > 0 && ` · ${pointed.length} done so far`}. Read through them before the meeting. Links open in ADO (needs VPN).

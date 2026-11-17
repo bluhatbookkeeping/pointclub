@@ -2,13 +2,14 @@ import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { sprintStats } from '../lib/awards'
 import { sfx } from '../lib/sounds'
-import { sessionName } from '../lib/utils'
+import { playMusic } from '../lib/voice'
+import { sessionDate, sessionName } from '../lib/utils'
 import type { Sprint } from '../lib/types'
 import type { RoomApi } from '../lib/useRoom'
 
 export function Credits({ api, sprint, onClose }: { api: RoomApi; sprint: Sprint; onClose: () => void }) {
   const st = sprintStats(sprint, api.stories, api.votes, api.members)
-  useEffect(() => { sfx.fanfare() }, [])
+  useEffect(() => { sfx.fanfare(); return playMusic('credits') }, []) // upbeat music while the credits roll; fades out on close
   const lines: [string, string][] = [
     ['Total points', String(st.total)],
     ['Stories pointed', `${st.pointed.length}`],
@@ -26,6 +27,7 @@ export function Credits({ api, sprint, onClose }: { api: RoomApi; sprint: Sprint
       <motion.div className="absolute left-0 right-0 text-center" initial={{ y: '100vh' }} animate={{ y: '-110%' }} transition={{ duration: 22, ease: 'linear' }} onAnimationComplete={onClose}>
         <div className="text-muted-foreground tracking-[0.4em] text-sm">SESSION RECAP</div>
         <div className="text-7xl font-semibold tracking-tight mt-3">{sessionName(sprint.name)}</div>
+        <div className="mt-2 text-xl text-muted-foreground">{sessionDate(sprint)}</div>
         {sprint.title && <div className="text-3xl italic mt-2">{sprint.title}</div>}
         <div className="mt-16 grid gap-3 text-xl">{lines.map(([k, v]) => <div key={k}><span className="text-muted-foreground">{k}</span> · <b>{v}</b></div>)}</div>
         <div className="mt-16 label">Commendations</div>

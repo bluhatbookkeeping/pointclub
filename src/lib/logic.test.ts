@@ -110,3 +110,16 @@ describe('stripLinks', () => {
   it('parser drops a broken trailing link', () =>
     expect(parseStories('650454 Provider Portal | Turn on FOH - On hold https: /')).toEqual([{ number: '650454', title: 'Provider Portal | Turn on FOH - On hold' }]))
 })
+
+import { nextWeek, sessionDate, sessionIso } from './utils'
+describe('session dates', () => {
+  it('uses the meeting date as a plain calendar date', () => {
+    expect(sessionIso({ meetingDate: '2026-11-24', startedAt: 0 })).toBe('2026-11-24')
+    expect(sessionDate({ meetingDate: '2026-11-24' })).toMatch(/Nov 24/)
+  })
+  it('falls back to the day the session started', () => {
+    const d = new Date(2026, 0, 5, 9).getTime()
+    expect(sessionIso({ meetingDate: null, startedAt: d })).toBe('2026-01-05')
+  })
+  it('next session defaults to a week after a future date', () => expect(nextWeek({ meetingDate: '2099-03-01' })).toBe('2099-03-08'))
+})

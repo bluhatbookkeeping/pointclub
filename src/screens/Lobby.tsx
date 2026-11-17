@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CAST, castById } from '@/lib/cast'
 import { isOnlineAt } from '@/lib/useRoom'
-import { cn, sessionName } from '@/lib/utils'
+import { cn, sessionDate, sessionName } from '@/lib/utils'
 import type { RoomApi } from '@/lib/useRoom'
 
 export function Lobby({ api, onEnter }: { api: RoomApi; onEnter: () => void }) {
@@ -21,7 +21,7 @@ export function Lobby({ api, onEnter }: { api: RoomApi; onEnter: () => void }) {
   const [character, setCharacter] = useState<string>(me?.character ?? '')
   const ready = !!name.trim() && !!character && !taken.has(character)
   const [editing, setEditing] = useState(!me)
-  const sprintLine = <>{sessionName(activeSprint?.name)}</>
+  const sprintLine = <>{sessionName(activeSprint?.name)}{activeSprint ? ` · ${sessionDate(activeSprint)}` : ''}</>
 
   if (me && !editing) {
     const c = castById(me.character)

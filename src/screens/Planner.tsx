@@ -8,7 +8,7 @@ import { SortableList } from '@/components/SortableList'
 import { NO_AUTOFILL, StoryImport } from '@/components/StoryImport'
 import { label } from '@/components/TicketCard'
 import { buildAdoUrl, stripLinks, toAdoPattern } from '@/lib/parseStories'
-import { cn, sessionName } from '@/lib/utils'
+import { cn, sessionDate, sessionName } from '@/lib/utils'
 import type { Story } from '@/lib/types'
 import type { RoomApi } from '@/lib/useRoom'
 
@@ -105,7 +105,7 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
     setPicked([])
     for (const s of list) await actions.removeStory(s.id)
   }
-  const sessionLabel = activeSprint ? sessionName(activeSprint.name) : 'Session'
+  const sessionLabel = activeSprint ? `${sessionName(activeSprint.name)} · ${sessionDate(activeSprint)}` : 'Session'
   const pointedCount = lineup.filter((s) => s.points).length
   const skippedCount = lineup.filter((s) => !s.points && s.skipped).length
 

@@ -1,4 +1,4 @@
-import { sessionName } from '@/lib/utils'
+import { sessionDate, sessionIso, sessionName } from '@/lib/utils'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowLeft, Download, FolderClosed, FolderOpen } from 'lucide-react'
@@ -38,11 +38,11 @@ export function Vault({ api, onBack }: { api: RoomApi; onBack: () => void }) {
   const nameOf = (id: string) => api.members.find((m) => m.id === id)
 
   const exportCsv = () => {
-    const rows = [['Session', 'Session note', 'Story #', 'Title', 'Points', 'Outcome', 'Votes taken', 'Average vote', 'Lowest vote', 'Highest vote', 'Votes', 'Note', 'ADO link']]
+    const rows = [['Session', 'Date', 'Session note', 'Story #', 'Title', 'Points', 'Outcome', 'Votes taken', 'Average vote', 'Lowest vote', 'Highest vote', 'Votes', 'Note', 'ADO link']]
     const outcomeText = (o: string | null) => (o && OUTCOME[o] ? OUTCOME[o].text : '')
     for (const { s, st } of stats) for (const story of st.list) {
       const vs = st.voteStats(story)
-      rows.push([sessionName(s.name), s.title, story.number, story.title, story.points ?? '', outcomeText(story.outcome) || (story.skipped ? 'Skipped' : ''), String(story.rounds),
+      rows.push([sessionName(s.name), sessionIso(s), s.title, story.number, story.title, story.points ?? '', outcomeText(story.outcome) || (story.skipped ? 'Skipped' : ''), String(story.rounds),
         vs ? String(vs.avg) : '', vs ? String(vs.min) : '', vs ? String(vs.max) : '',
         st.finalVotes(story).map((v) => `${nameOf(v.memberId)?.name ?? '?'}=${label(v.value)}`).join('; '), story.note ?? '', story.url])
     }
@@ -97,7 +97,7 @@ export function Vault({ api, onBack }: { api: RoomApi; onBack: () => void }) {
                   {s.closedAt ? <FolderClosed className="h-4 w-4 text-muted-foreground" /> : <FolderOpen className="h-4 w-4 text-muted-foreground" />}
                 </div>
                 <CardTitle className="pt-2">{sessionName(s.name)}</CardTitle>
-                <CardDescription>{s.title ? `${s.title} · ` : ''}{new Date(s.startedAt).toLocaleDateString()}</CardDescription>
+                <CardDescription>{s.title ? `${s.title} · ` : ''}{sessionDate(s)}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-semibold tabular-nums">{st.total} <span className="text-sm font-normal text-muted-foreground">pts</span></div>

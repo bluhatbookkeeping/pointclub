@@ -63,3 +63,4 @@ alter table stories add column if not exists skipped boolean default false;
 alter table stories add column if not exists note text default '';
 alter table rooms add column if not exists next_count int;
 alter table rooms add column if not exists host_votes boolean;
+alter table sprints add column if not exists meeting_date text;

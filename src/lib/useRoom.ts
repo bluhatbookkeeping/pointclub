@@ -3,6 +3,7 @@ import { makeBackend, setLocalEcho } from './backend'
 import { judge } from './consensus'
 import { getMyId, forgetMe, setMyId, uid } from './identity'
 import { buildAdoUrl, ParsedStory } from './parseStories'
+import { isoDate } from './utils'
 import type { CardValue, LiveEvent, Member, Room, Snapshot, Sprint, Story } from './types'
 
 /** Someone is "at the table" while their screen checks in (every 30 seconds); 3 minutes of silence means they left. */
@@ -55,7 +56,7 @@ export function useRoom(roomId: string) {
       try {
         const s = await db.load()
         if (!s.room) {
-          const sprint: Sprint = { id: uid(), roomId, name: 'Refinement Session 1', title: '', startedAt: Date.now(), closedAt: null }
+          const sprint: Sprint = { id: uid(), roomId, name: 'Refinement Session 1', title: '', startedAt: Date.now(), closedAt: null, meetingDate: isoDate(new Date()) }
           const room: Room = { id: roomId, name: 'Point Club', hostId: null, activeSprintId: sprint.id, currentStoryId: null, revealed: false, round: 1, adoPattern: '' }
           await db.ensureRoom(room, sprint)
         }
@@ -274,12 +275,12 @@ export function useRoom(roomId: string) {
       const missing = stories.filter((s) => !s.url)
       if (missing.length) await db.upsertStories(missing.map((s) => ({ ...s, url: buildAdoUrl(adoPattern, s.number) })))
     },
-    async renameSprint(p: Partial<Pick<Sprint, 'name' | 'title'>>) { if (activeSprint) await db.upsertSprint({ ...activeSprint, ...p }) },
+    async renameSprint(p: Partial<Pick<Sprint, 'name' | 'title' | 'meetingDate'>>) { if (activeSprint) await db.upsertSprint({ ...activeSprint, ...p }) },
     /** Finish this session. Unpointed stories go back to the top of the backlog, or into the Next session list. */
-    async closeAndStartNext(name: string, title: string, carryTo: 'backlog' | 'next' = 'backlog') {
+    async closeAndStartNext(name: string, title: string, carryTo: 'backlog' | 'next' = 'backlog', meetingDate: string | null = null) {
       if (!room) return
       if (activeSprint) await db.upsertSprint({ ...activeSprint, closedAt: Date.now() })
-      const next: Sprint = { id: uid(), roomId, name, title, startedAt: Date.now(), closedAt: null }
+      const next: Sprint = { id: uid(), roomId, name, title, startedAt: Date.now(), closedAt: null, meetingDate }
       await db.upsertSprint(next)
       // Stories that weren't pointed go back to the top of the backlog (with their notes). The finished session
       // keeps a copy marked as skipped, so its history stays accurate.

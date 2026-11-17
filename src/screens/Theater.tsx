@@ -19,10 +19,10 @@ import { SortableList } from '@/components/SortableList'
 import { NewSprint } from './NewSprint'
 import { Credits } from './Credits'
 import { CAST, castById } from '@/lib/cast'
-import { setVoicesEnabled, voice, voicesEnabled } from '@/lib/voice'
+import { setVoicesEnabled, voice, voicesEnabled, votingMusic } from '@/lib/voice'
 import { blockbusterBurst, clearFx, sparkleBurst } from '@/lib/fx'
 import { isMuted, setMuted, sfx } from '@/lib/sounds'
-import { cn, sessionName } from '@/lib/utils'
+import { cn, sessionDate, sessionIso, sessionName } from '@/lib/utils'
 import { DECK, NUMERIC, Outcome } from '@/lib/types'
 import { isOnlineAt, isOpen, type RoomApi } from '@/lib/useRoom'
 import { REACTIONS } from '@/lib/reactions'
@@ -61,6 +61,10 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
   // Who votes: everyone here except the dealer (the host), unless the host turned on "Vote too".
   const voters = here.filter((m) => room?.hostVotes || m.id !== room?.hostId)
   const allIn = voters.length > 0 && voters.every((m) => roundVotes.some((v) => v.memberId === m.id))
+  // Lounge music while people are voting; it fades out once every card is in or the hand is shown.
+  const votingNow = !!current && !current.points && !current.skipped && !room?.revealed && !allIn && me?.status === 'here'
+  useEffect(() => { votingMusic(votingNow) }, [votingNow])
+  useEffect(() => () => votingMusic(false), [])
   const away = members.filter((m) => m.status === 'away')
   const [phase, setPhase] = useState<Phase>(room?.revealed ? 'shown' : 'voting')
   const [verdict, setVerdict] = useState<Outcome | null>(null)
@@ -158,7 +162,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
     return [
       'Hi team,',
       '',
-      `Here are the stories we'll point in our next session${activeSprint ? ` (${sessionName(activeSprint.name)})` : ''}:`,
+      `Here are the stories we'll point${activeSprint ? ` on ${sessionDate(activeSprint)} (${sessionName(activeSprint.name)})` : ' in our next session'}:`,
       '',
       ...(list.length ? list.map((s, i) => `${i + 1}. #${s.number} ${s.title}${s.url ? `\n   ${s.url}` : ''}${s.note ? `\n   Note: ${s.note}` : ''}`) : ['(No stories picked yet.)']),
       '',
@@ -186,6 +190,13 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
           <Separator orientation="vertical" className="h-5" />
           <div className="flex min-w-0 items-center gap-2 text-sm">
             <span className="font-medium">{sessionName(activeSprint?.name)}</span>
+            {activeSprint && <Popover>
+              <PopoverTrigger asChild><button className="rounded px-1 text-muted-foreground hover:bg-secondary hover:text-foreground" title="Change the meeting date" data-testid="session-date">· {sessionDate(activeSprint)}</button></PopoverTrigger>
+              <PopoverContent className="w-auto p-3">
+                <label className="grid gap-1.5 text-sm"><span className="font-medium">Meeting date</span>
+                  <Input type="date" defaultValue={sessionIso(activeSprint)} aria-label="Meeting date" onChange={(e) => e.target.value && actions.renameSprint({ meetingDate: e.target.value })} /></label>
+              </PopoverContent>
+            </Popover>}
             {activeSprint?.title && <span className="hidden truncate text-muted-foreground 2xl:inline">{activeSprint.title}</span>}
             <Badge variant="secondary" className="whitespace-nowrap">{pointedCount}/{lineup.length} pointed · {totalPts} pts</Badge>
             {mode === 'local' && <Tooltip><TooltipTrigger asChild><Badge variant="destructive" className="whitespace-nowrap">Demo mode</Badge></TooltipTrigger><TooltipContent className="max-w-xs whitespace-normal">Team mode is off, so only tabs in this browser share the room. This only happens when running Point Club on your own computer.</TooltipContent></Tooltip>}
@@ -204,7 +215,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
                   <Textarea readOnly className="h-56 font-mono text-xs" value={invite ?? ''} onFocus={(e) => e.currentTarget.select()} />
                   <div className="flex flex-wrap gap-2">
                     <Button size="sm" onClick={() => navigator.clipboard?.writeText(invite ?? '').then(() => { setAgendaCopied(true); setTimeout(() => setAgendaCopied(false), 1800) })}>{agendaCopied ? <Check /> : <Mail />} {agendaCopied ? 'Copied' : 'Copy email text'}</Button>
-                    <Button size="sm" variant="outline" asChild><a href={`mailto:?subject=${encodeURIComponent(`Story pointing: ${sessionName(activeSprint?.name) || 'this week'}`)}&body=${encodeURIComponent(invite ?? '')}`}>Open in email app</a></Button>
+                    <Button size="sm" variant="outline" asChild><a href={`mailto:?subject=${encodeURIComponent(`Story pointing: ${activeSprint ? `${sessionName(activeSprint.name)}, ${sessionDate(activeSprint)}` : 'this week'}`)}&body=${encodeURIComponent(invite ?? '')}`}>Open in email app</a></Button>
                     <Button size="sm" variant="ghost" onClick={copyAgenda}><ListChecks /> Copy agenda link</Button>
                   </div>
                 </PopoverContent>
@@ -213,7 +224,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
             <Button variant="ghost" size="sm" onClick={openVault} title="Past stories (every session's stories and votes)"><FolderOpen /><span className="hidden lg:inline">Past stories</span></Button>
             <IconBtn tip={copied ? 'Copied!' : 'Copy room link'} onClick={copyLink}>{copied ? <Check /> : <Link2 />}</IconBtn>
             <IconBtn tip={voices ? 'Turn voice lines off' : 'Turn voice lines on'} onClick={() => { setVoicesEnabled(!voices); setVoices(!voices) }}>{voices ? <MessageSquare /> : <MessageSquareOff />}</IconBtn>
-            <IconBtn tip={muted ? 'Unmute' : 'Mute'} onClick={() => { setMuted(!muted); setMute(!muted) }}>{muted ? <VolumeX /> : <Volume2 />}</IconBtn>
+            <IconBtn tip={muted ? 'Unmute' : 'Mute'} onClick={() => { setMuted(!muted); setMute(!muted); votingMusic(muted ? votingNow : false) }}>{muted ? <VolumeX /> : <Volume2 />}</IconBtn>
             <IconBtn tip="My seat (lobby)" onClick={onLobby}>{me ? <Avatar character={me.character} name={me.name} size={26} /> : <UserRound />}</IconBtn>
           </div>
         </div>
@@ -225,7 +236,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
           <div className="sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto overflow-x-hidden p-3">
             <div className="mb-2 flex items-baseline justify-between px-2">
               <span className="label" data-testid="session-label">{(() => { const done = lineup.filter((x) => x.points).length; const n = lineup.length
-                const nm = activeSprint ? sessionName(activeSprint.name) : 'Refinement session'
+                const nm = activeSprint ? `${sessionName(activeSprint.name)} · ${sessionDate(activeSprint, true)}` : 'Refinement session'
                 return n === 0 ? nm : `${nm} · ${done} of ${n} pointed` })()}</span>
             </div>
             {lineup.length === 0 && <p className="text-sm text-muted-foreground px-2">{isHost ? (upNext.length ? `${upNext.length} ${upNext.length === 1 ? 'story is' : 'stories are'} waiting in Next session.` : 'Pick stories on the Plan stories page.') : 'Waiting for stories. Anyone can click + Add a story.'}</p>}

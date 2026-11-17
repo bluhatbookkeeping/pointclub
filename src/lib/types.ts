@@ -18,6 +18,8 @@ export interface Sprint {
   title: string // "The Login Refactor"
   startedAt: number
   closedAt: number | null
+  /** The meeting's calendar date, e.g. "2026-11-24" (no time, so it never shifts between time zones). */
+  meetingDate?: string | null
 }
 export type Outcome = 'blockbuster' | 'critics' | 'plottwist' | 'none'
 export interface Story {
