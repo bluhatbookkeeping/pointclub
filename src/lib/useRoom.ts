@@ -8,6 +8,12 @@ import type { CardValue, LiveEvent, Member, Room, Snapshot, Sprint, Story } from
 /** A story still waiting for points this sprint (not pointed, not skipped). */
 export const isOpen = (s: Story) => !s.points && !s.skipped
 
+/** Stories whose number isn't already in the backlog or session (and not repeated within the batch). */
+export function onlyNew<T extends { number: string }>(existing: { number: string }[], rows: T[]): T[] {
+  const seen = new Set(existing.map((s) => s.number))
+  return rows.filter((r) => (seen.has(r.number) ? false : (seen.add(r.number), true)))
+}
+
 /** Renumber stories 0..n in the given order; returns only the ones whose order changed. */
 export function reorderRows(stories: Story[], ids: string[]): Story[] {
   const out: Story[] = []
@@ -24,6 +30,14 @@ export function useRoom(roomId: string) {
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const eventHandlers = useRef<Array<(e: LiveEvent) => void>>([])
+  // Latest stories, updated right away on our own writes, so back-to-back actions (several screenshots) see each other.
+  const storiesRef = useRef<Story[]>([])
+  storiesRef.current = snap.stories
+  const putLocal = (rows: Story[]) => {
+    const ids = new Set(rows.map((r) => r.id))
+    storiesRef.current = [...storiesRef.current.filter((s) => !ids.has(s.id)), ...rows]
+    setSnap((p) => ({ ...p, stories: [...p.stories.filter((s) => !ids.has(s.id)), ...rows] }))
+  }
 
   const refresh = useCallback(async () => {
     try { setSnap(await db.load()); setError(null) } catch (e: any) { setError(e?.message ?? String(e)) }
@@ -139,20 +153,25 @@ export function useRoom(roomId: string) {
       await db.upsertStories([{ ...current, points: null, outcome: null, rounds: round }])
       await patchRoom({ revealed: false, round })
     },
-    /** Add stories to the backlog (default) or straight into this session. */
-    async addStories(rows: ParsedStory[], pattern = room?.adoPattern ?? '', to: 'backlog' | 'session' = 'session') {
-      if (!activeSprint || !room) return
-      const list = to === 'backlog' ? backlog : lineup
+    /** Add stories to the backlog (default) or this session. Numbers already planned are skipped. */
+    async addStories(rows: ParsedStory[], pattern = room?.adoPattern ?? '', to: 'backlog' | 'session' = 'backlog') {
+      if (!activeSprint || !room) return { added: [] as Story[], skipped: rows.length }
+      const all = storiesRef.current
+      const planned = all.filter((s) => s.sprintId === backlogId || (s.sprintId === activeSprint.id))
+      const fresh = onlyNew(planned, rows.map((r) => ({ ...r, number: r.number.trim(), title: r.title.trim() })).filter((r) => r.number && r.title))
+      const target = to === 'backlog' ? backlogId : activeSprint.id
+      const list = all.filter((s) => s.sprintId === target)
       if (to === 'backlog' && !snap.sprints.some((s) => s.id === backlogId))
         await db.upsertSprint({ id: backlogId, roomId, name: 'Backlog', title: '', startedAt: 0, closedAt: null })
       const base = list.length ? Math.max(...list.map((s) => s.order)) + 1 : 0
-      const created: Story[] = rows.map((r, i) => ({
-        id: uid(), roomId, sprintId: to === 'backlog' ? backlogId : activeSprint.id, number: r.number, title: r.title,
-        url: r.url?.trim() || buildAdoUrl(pattern, r.number), points: null, outcome: null, rounds: 1, order: base + i,
+      const created: Story[] = fresh.map((r, i) => ({
+        id: uid(), roomId, sprintId: target, number: r.number, title: r.title,
+        url: r.url?.trim() || buildAdoUrl(pattern, r.number), points: null, outcome: null, rounds: 1, order: base + i, skipped: false, note: '',
       }))
-      await db.upsertStories(created)
-      if (to === 'session' && (!room.currentStoryId || !stories.some((s) => s.id === room.currentStoryId && s.sprintId === activeSprint.id)))
-        await patchRoom({ currentStoryId: created[0]?.id ?? null, revealed: false, round: 1 })
+      if (created.length) { putLocal(created); await db.upsertStories(created) }
+      if (to === 'session' && created.length && (!room.currentStoryId || !stories.some((s) => s.id === room.currentStoryId && s.sprintId === activeSprint.id)))
+        await patchRoom({ currentStoryId: created[0].id, revealed: false, round: 1 })
+      return { added: created, skipped: rows.length - created.length }
     },
     /** Pick backlog stories for this session (in the order given). */
     async moveToSession(ids: string[]) {
@@ -176,11 +195,11 @@ export function useRoom(roomId: string) {
     async reorder(ids: string[]) {
       const changed = reorderRows(stories, ids)
       if (!changed.length) return
-      setSnap((p) => ({ ...p, stories: p.stories.map((s) => changed.find((c) => c.id === s.id) ?? s) })) // no snap-back while saving
+      putLocal(changed) // no snap-back while saving
       await db.upsertStories(changed)
     },
     async setNextCount(n: number) { await patchRoom({ nextCount: Math.max(1, Math.min(30, Math.round(n))) }) },
-    async editStory(s: Story) { await db.upsertStories([s]) },
+    async editStory(s: Story) { putLocal([s]); await db.upsertStories([s]) },
     async removeStory(id: string) {
       await db.removeStory(id)
       if (room?.currentStoryId === id) await patchRoom({ currentStoryId: lineup.find((s) => s.id !== id)?.id ?? null, revealed: false, round: 1 })

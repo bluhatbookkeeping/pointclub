@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { judge } from './consensus'
 import { parseStories, buildAdoUrl, toAdoPattern } from './parseStories'
-import { reorderRows } from './useRoom'
+import { onlyNew, reorderRows } from './useRoom'
 
 describe('judge', () => {
   it('all the same is a blockbuster, ignoring ? and coffee', () => {
@@ -89,4 +89,9 @@ describe('reorderRows', () => {
     expect(out.map((r) => [r.id, r.order])).toEqual([['c', 0], ['a', 1], ['b', 2]])
   })
   it('writes nothing when the order is unchanged', () => expect(reorderRows([mk('a', 0), mk('b', 1)], ['a', 'b'])).toEqual([]))
+})
+
+describe('onlyNew', () => {
+  it('skips numbers already planned and repeats within the batch', () =>
+    expect(onlyNew([{ number: '1' }], [{ number: '1' }, { number: '2' }, { number: '2' }, { number: '3' }]).map((r) => r.number)).toEqual(['2', '3']))
 })

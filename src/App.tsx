@@ -6,6 +6,7 @@ import { Landing } from './screens/Landing'
 import { Lobby } from './screens/Lobby'
 import { Theater } from './screens/Theater'
 import { Vault } from './screens/Vault'
+import { Planner } from './screens/Planner'
 import { Agenda } from './screens/Agenda'
 
 export default function App() {
@@ -15,7 +16,7 @@ export default function App() {
 
 function RoomApp({ roomId }: { roomId: string }) {
   const api = useRoom(roomId)
-  const [view, setView] = useState<'theater' | 'vault'>('theater')
+  const [view, setView] = useState<'theater' | 'vault' | 'planner'>('theater')
   const [checkedIn, setCheckedIn] = useState(() => { try { return sessionStorage.getItem('pointclub:in:' + location.search) === '1' } catch { return false } })
   useEffect(() => { try { sessionStorage.setItem('pointclub:in:' + location.search, checkedIn ? '1' : '0') } catch { /* */ } }, [checkedIn])
 
@@ -25,5 +26,6 @@ function RoomApp({ roomId }: { roomId: string }) {
   if (new URLSearchParams(location.search).get('agenda')) return <Agenda api={api} />
   if (!api.me || !checkedIn) return <Lobby api={api} onEnter={() => setCheckedIn(true)} />
   if (view === 'vault') return <Vault api={api} onBack={() => setView('theater')} />
-  return <Theater api={api} openVault={() => setView('vault')} onLobby={() => setCheckedIn(false)} />
+  if (view === 'planner') return <Planner api={api} onBack={() => setView('theater')} />
+  return <Theater api={api} openVault={() => setView('vault')} openPlanner={() => setView('planner')} onLobby={() => setCheckedIn(false)} />
 }

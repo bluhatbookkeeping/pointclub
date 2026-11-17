@@ -16,7 +16,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { SortableList } from '@/components/SortableList'
-import { LoadStories } from './LoadStories'
 import { NewSprint } from './NewSprint'
 import { Credits } from './Credits'
 import { CAST, castById } from '@/lib/cast'
@@ -33,7 +32,7 @@ function IconBtn({ tip, children, ...p }: React.ComponentProps<typeof Button> & 
   return <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label={tip} {...p}>{children}</Button></TooltipTrigger><TooltipContent>{tip}</TooltipContent></Tooltip>
 }
 
-export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: () => void; onLobby: () => void }) {
+export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi; openVault: () => void; openPlanner: () => void; onLobby: () => void }) {
   const { room, members, me, current, lineup, backlog, roundVotes, myVote, isHost, result, actions, activeSprint, sprints, mode } = api
   const here = members.filter((m) => m.status === 'here').sort((a, b) => a.name.localeCompare(b.name))
   const away = members.filter((m) => m.status === 'away')
@@ -41,11 +40,6 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
   const [verdict, setVerdict] = useState<Outcome | null>(null)
   const [muted, setMute] = useState(isMuted())
   const [voices, setVoices] = useState(voicesEnabled())
-  const [showLoad, setShowLoad] = useState(false)
-  const [loadTo, setLoadTo] = useState<'backlog' | 'session'>('backlog')
-  const [tab, setTab] = useState<'session' | 'backlog'>('session')
-  const [picked, setPicked] = useState<string[]>([])
-  const nextCount = room?.nextCount ?? 6
   const [invite, setInvite] = useState<string | null>(null)
   const [showNewSprint, setShowNewSprint] = useState(false)
   const [creditsFor, setCreditsFor] = useState<string | null>(null)
@@ -133,8 +127,7 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
   /** Ready-to-send invite: the session's stories with ADO links, plus the join and agenda links. */
   const inviteEmail = () => {
     const agenda = new URL(roomLink()); agenda.searchParams.set('agenda', '1')
-    const open = lineup.filter((s) => !s.points)
-    const list = open.length ? open : backlog.slice(0, nextCount)
+    const list = lineup.filter((s) => !s.points)
     return [
       'Hi team,',
       '',
@@ -171,7 +164,7 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
             {mode === 'local' && <Tooltip><TooltipTrigger asChild><Badge variant="destructive" className="whitespace-nowrap">Demo mode</Badge></TooltipTrigger><TooltipContent className="max-w-xs whitespace-normal">Team mode is off, so only tabs in this browser share the room. On Vercel, set VITE_BACKEND = api and redeploy.</TooltipContent></Tooltip>}
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
-            {isHost && <Button variant="outline" size="sm" onClick={() => { setLoadTo("backlog"); setShowLoad(true) }} title="Add stories"><Camera /><span className="hidden lg:inline">Add stories</span></Button>}
+            {isHost && <Button variant="outline" size="sm" onClick={openPlanner} title="Plan stories: add stories, rank the backlog, pick this session"><ListChecks /><span className="hidden lg:inline">Plan stories</span></Button>}
             {isHost && <Button variant="outline" size="sm" onClick={() => setShowNewSprint(true)} title="Finish this session and save it to Past stories"><Clapperboard /><span className="hidden lg:inline">Finish session</span></Button>}
             {isHost && (
               <Popover onOpenChange={(o) => o && setInvite(inviteEmail())}>
@@ -201,61 +194,10 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
         {/* Sidebar */}
         <aside className="w-64 shrink-0 border-r">
           <div className="sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto overflow-x-hidden p-3">
-            <div className="mb-2 grid grid-cols-2 rounded-md border p-0.5 text-sm">
-              {(['session', 'backlog'] as const).map((k) => (
-                <button key={k} onClick={() => setTab(k)} className={cn('rounded px-2 py-1 transition-colors', tab === k ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}>
-                  {k === 'session' ? `Session (${lineup.length})` : `Backlog (${backlog.length})`}
-                </button>
-              ))}
+            <div className="mb-2 flex items-baseline justify-between px-2">
+              <span className="label">This session ({lineup.length})</span>
             </div>
-            {tab === 'backlog' ? (
-              <div className="grid gap-1">
-                {backlog.length === 0 && <p className="px-2 text-sm text-muted-foreground">The backlog is empty. {isHost ? 'Add stories here ahead of time, then pick the ones for each session.' : ''}</p>}
-                {backlog.length > 0 && <p className="px-2 pb-1 text-xs text-muted-foreground">{isHost ? 'Drag to set the order. The top stories go into the next session.' : 'In order. The top stories are up next.'}</p>}
-                <SortableList items={backlog} enabled={isHost} onReorder={actions.reorder}
-                  between={(i) => i === nextCount - 1 && backlog.length > nextCount
-                    ? <div className="my-1 flex items-center gap-2 px-2 text-[11px] font-medium uppercase tracking-wide text-primary" data-testid="next-line"><span className="h-px flex-1 border-t border-dashed border-primary/60" />↑ Next session ({nextCount})<span className="h-px flex-1 border-t border-dashed border-primary/60" /></div>
-                    : null}
-                  renderItem={(s, i, handle) => (
-                    <label className={cn('group flex items-start gap-1.5 rounded-md px-1.5 py-1.5 text-sm', isHost && 'cursor-pointer hover:bg-secondary/60', i < nextCount && 'bg-primary/[0.06]')} title={s.note || s.title} data-testid="backlog-row">
-                      {handle}
-                      <span className="mt-0.5 w-5 shrink-0 text-right font-mono text-xs text-muted-foreground">{i + 1}</span>
-                      {isHost && <input type="checkbox" className="mt-1 h-4 w-4 accent-[hsl(var(--primary))]" checked={picked.includes(s.id)}
-                        onChange={(e) => setPicked((p) => (e.target.checked ? [...p, s.id] : p.filter((x) => x !== s.id)))} aria-label={`Pick #${s.number}`} />}
-                      <span className="min-w-0 flex-1">
-                        <span className="block font-mono text-xs text-muted-foreground">#{s.number}</span>
-                        <span className="block line-clamp-2 break-words leading-snug">{s.title}</span>
-                        {s.note && <span className="block text-xs text-amber-800 line-clamp-1">{s.note}</span>}
-                      </span>
-                      {isHost && <span className="flex flex-col gap-1">
-                        {i > 0 && <button className="hidden text-muted-foreground/60 hover:text-foreground group-hover:block" title="Move to top" aria-label={`Move #${s.number} to top`}
-                          onClick={(e) => { e.preventDefault(); actions.reorder([s.id, ...backlog.filter((x) => x.id !== s.id).map((x) => x.id)]) }}><ArrowUpToLine className="h-3.5 w-3.5" /></button>}
-                        <button className="text-muted-foreground/60 hover:text-destructive" title="Delete from backlog" onClick={(e) => { e.preventDefault(); if (confirm(`Delete #${s.number} from the backlog?`)) actions.removeStory(s.id) }}><Trash2 className="h-3.5 w-3.5" /></button>
-                      </span>}
-                    </label>
-                  )} />
-                {isHost && <div className="sticky bottom-0 mt-2 grid gap-1.5 bg-background pt-2">
-                  {backlog.length > 0 && <>
-                    <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
-                      <span>Stories per session</span>
-                      <span className="flex items-center gap-1">
-                        <Button size="icon" variant="outline" className="h-6 w-6" aria-label="Fewer per session" disabled={nextCount <= 1} onClick={() => actions.setNextCount(nextCount - 1)}><Minus className="h-3 w-3" /></Button>
-                        <span className="w-5 text-center font-mono text-foreground" data-testid="next-count">{nextCount}</span>
-                        <Button size="icon" variant="outline" className="h-6 w-6" aria-label="More per session" disabled={nextCount >= 30} onClick={() => actions.setNextCount(nextCount + 1)}><Plus className="h-3 w-3" /></Button>
-                      </span>
-                    </div>
-                    {picked.length === 0 && <Button size="sm" onClick={async () => { await actions.moveToSession(backlog.slice(0, nextCount).map((s) => s.id)); setTab('session') }}>
-                      Start this session with the top {Math.min(nextCount, backlog.length)} <ArrowRight />
-                    </Button>}
-                  </>}
-                  {picked.length > 0 && <Button size="sm" onClick={async () => { await actions.moveToSession(backlog.filter((s) => picked.includes(s.id)).map((s) => s.id)); setPicked([]); setTab('session') }}>
-                    Add {picked.length} picked to this session <ArrowRight />
-                  </Button>}
-                  <Button size="sm" variant="outline" onClick={() => { setLoadTo('backlog'); setShowLoad(true) }}><Plus /> Add stories to backlog</Button>
-                </div>}
-              </div>
-            ) : <>
-            {lineup.length === 0 && <p className="text-sm text-muted-foreground px-2">No stories in this session yet. {isHost ? (backlog.length ? 'Pick some from the Backlog tab.' : 'Click “Add stories” to start.') : 'Waiting for the host.'}</p>}
+            {lineup.length === 0 && <p className="text-sm text-muted-foreground px-2">No stories in this session yet. {isHost ? 'Open Plan stories to add some.' : 'Waiting for the host.'}</p>}
             <nav className="grid gap-0.5">
               <SortableList items={lineup} enabled={isHost} canDrag={(s) => !s.points && !s.skipped} onReorder={actions.reorder}
                 renderItem={(s, _i, handle) => (
@@ -280,7 +222,9 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
                 </div>
               )} />
             </nav>
-            </>}
+            <button onClick={openPlanner} className="mt-3 w-full rounded-md border border-dashed px-2 py-2 text-left text-sm text-muted-foreground hover:bg-secondary/60 hover:text-foreground" data-testid="backlog-link">
+              Backlog: {backlog.length} {backlog.length === 1 ? 'story' : 'stories'} · <span className="font-medium text-primary">Plan stories →</span>
+            </button>
             {away.length > 0 && <>
               <Separator className="my-4" />
               <div className="label px-2 mb-2">Away</div>
@@ -321,11 +265,11 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
                     <div className="mt-1 text-2xl font-semibold tracking-tight">{pointedCount} pointed · {totalPts} points</div>
                     {skippedCount > 0 && <div className="text-sm text-amber-800">{skippedCount} skipped · goes back to the backlog</div>}
                   </div>
-                  {isHost && <Button variant="outline" onClick={() => (backlog.length ? setTab("backlog") : (setLoadTo("session"), setShowLoad(true)))}><Camera /> Add more stories</Button>}
+                  {isHost && <Button variant="outline" onClick={openPlanner}><ListChecks /> Plan stories</Button>}
                   {isHost && <Button onClick={() => setShowNewSprint(true)}><Clapperboard /> Finish session</Button>}
                 </div>
-              ) : <div className="flex flex-1 items-center gap-4"><span className="flex-1 text-muted-foreground">{lineup.length ? 'Pick a story on the left to start.' : isHost ? (backlog.length ? 'Pick stories from the backlog to start.' : 'No stories yet. Add some to start.') : 'Waiting for the host…'}</span>
-                  {isHost && !lineup.length && (backlog.length ? <Button onClick={() => setTab("backlog")}>Pick from backlog <ArrowRight /></Button> : <Button onClick={() => { setLoadTo("session"); setShowLoad(true) }}><Camera /> Add stories</Button>)}
+              ) : <div className="flex flex-1 items-center gap-4"><span className="flex-1 text-muted-foreground">{lineup.length ? 'Pick a story on the left to start.' : isHost ? (backlog.length ? 'Move stories from the backlog into this session to start.' : 'No stories yet. Add some to start.') : 'Waiting for the host…'}</span>
+                  {isHost && !lineup.length && <Button onClick={openPlanner}><ListChecks /> Plan stories <ArrowRight /></Button>}
                   {isHost && lineup.length > 0 && nextUnpointed && <Button onClick={() => actions.selectStory(nextUnpointed.id)}>Start with #{nextUnpointed.number} <ArrowRight /></Button>}
                 </div>}
             </CardContent>
@@ -412,7 +356,6 @@ export function Theater({ api, openVault, onLobby }: { api: RoomApi; openVault: 
       <AnimatePresence>{phase === 'countdown' && <Countdown onDone={finishCountdown} />}</AnimatePresence>
       <AnimatePresence>{verdict && verdict !== 'none' && <Verdict outcome={verdict} points={result?.suggested ?? ''} />}</AnimatePresence>
       <AnimatePresence>{celebrate && <Celebration points={totalPts} stories={pointedCount} skipped={skippedCount} onClose={() => setCelebrate(false)} />}</AnimatePresence>
-      <LoadStories api={api} open={showLoad} defaultTo={loadTo} onClose={() => setShowLoad(false)} />
       <NewSprint api={api} open={showNewSprint} onClose={() => setShowNewSprint(false)} />
       {creditsFor && <Credits api={api} sprint={sprints.find((s) => s.id === creditsFor)!} onClose={() => setCreditsFor(null)} />}
     </div>
