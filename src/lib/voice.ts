@@ -34,6 +34,8 @@ function fx(name: string, volume = 0.6) {
 
 const POINT_LINES = new Set(['1', '2', '3', '5', '8', '13', '21'])
 export const voice = {
+  /** A short sound effect clip (chips, chaching, alarm, boom). */
+  effect(name: string, volume = 0.6) { fx(name, volume) },
   /** Warm the browser cache so the first line plays instantly. */
   preload(characters: string[]) {
     for (const c of characters) clip(`voice/${c}`)

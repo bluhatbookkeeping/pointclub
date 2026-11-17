@@ -25,6 +25,7 @@ import { isMuted, setMuted, sfx } from '@/lib/sounds'
 import { cn, sessionName } from '@/lib/utils'
 import { DECK, NUMERIC, Outcome } from '@/lib/types'
 import { isOnlineAt, isOpen, type RoomApi } from '@/lib/useRoom'
+import { REACTIONS } from '@/lib/reactions'
 
 type Phase = 'voting' | 'countdown' | 'shown'
 
@@ -227,7 +228,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
                 const nm = activeSprint ? sessionName(activeSprint.name) : 'Refinement session'
                 return n === 0 ? nm : `${nm} · ${done} of ${n} pointed` })()}</span>
             </div>
-            {lineup.length === 0 && <p className="text-sm text-muted-foreground px-2">{isHost ? (upNext.length ? `${upNext.length} ${upNext.length === 1 ? 'story is' : 'stories are'} waiting in Next session.` : 'Pick stories on the Plan stories page.') : 'Waiting for the host to pick stories.'}</p>}
+            {lineup.length === 0 && <p className="text-sm text-muted-foreground px-2">{isHost ? (upNext.length ? `${upNext.length} ${upNext.length === 1 ? 'story is' : 'stories are'} waiting in Next session.` : 'Pick stories on the Plan stories page.') : 'Waiting for stories. Anyone can click + Add a story.'}</p>}
             <nav className="grid gap-0.5">
               <SortableList items={lineup} enabled={isHost} canDrag={(s) => !s.points && !s.skipped} onReorder={actions.reorder}
                 renderItem={(s, _i, handle) => (
@@ -307,7 +308,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
                   <Button variant="outline" onClick={openPlanner}><ListChecks /> Plan stories</Button>
                   {isHost && <Button onClick={() => setShowNewSprint(true)}><Clapperboard /> Finish session</Button>}
                 </div>
-              ) : <div className="flex flex-1 items-center gap-4"><span className="flex-1 text-muted-foreground">{lineup.length ? 'Pick a story on the left to start.' : isHost ? (upNext.length ? `${upNext.length} ${upNext.length === 1 ? 'story is' : 'stories are'} ready in Next session.` : backlog.length ? 'Pick the stories for this meeting on the Plan stories page.' : 'No stories yet. Add some to start.') : 'Waiting for the host…'}</span>
+              ) : <div className="flex flex-1 items-center gap-4"><span className="flex-1 text-muted-foreground">{lineup.length ? 'Pick a story on the left to start.' : isHost ? (upNext.length ? `${upNext.length} ${upNext.length === 1 ? 'story is' : 'stories are'} ready in Next session.` : backlog.length ? 'Pick the stories for this meeting on the Plan stories page.' : 'No stories yet. Add some to start.') : 'Waiting for the dealer…'}</span>
                   {isHost && !lineup.length && (upNext.length
                     ? <Button onClick={() => actions.putOnTable()} data-testid="table-put">Put {upNext.length} {upNext.length === 1 ? 'story' : 'stories'} on the table <ArrowRight /></Button>
                     : <Button onClick={openPlanner}><ListChecks /> Plan stories <ArrowRight /></Button>)}
@@ -324,7 +325,9 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
               spotlight: !!(spotlight && v && spotlight.has(v)),
               mood: shown && verdict === 'blockbuster' ? 'cheer' : shown && verdict === 'plottwist' ? 'shock' : !v && current && !shown ? 'thinking' : 'idle',
               menu: m.id === me?.id ? undefined : <>
-                {['💵', '🪙', '🍅', '🌹', '☕'].map((it) => <Button key={it} variant="ghost" size="icon" className="text-xl" onClick={() => actions.send({ kind: 'throw', from: me!.id, to: m.id, item: it })}>{it}</Button>)}
+                <span className="px-1 text-xs font-medium text-muted-foreground">Throw at {m.name}:</span>
+                {REACTIONS.map((r) => <Button key={r.item} variant="ghost" className="h-auto flex-col gap-0 px-2 py-1" title={`${r.name}: ${r.meaning}`} aria-label={`Throw ${r.name} at ${m.name}`}
+                  onClick={() => actions.send({ kind: 'throw', from: me!.id, to: m.id, item: r.item })}><span className="text-xl leading-none">{r.item}</span><span className="text-[10px] font-normal text-muted-foreground">{r.meaning}</span></Button>)}
                 {isHost && <><Separator orientation="vertical" className="h-6 mx-1" /><Button variant="ghost" size="sm" onClick={() => actions.makeHost(m.id)}><Crown /> Make dealer</Button>
                   <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" aria-label={`Remove ${m.name} from the table`}
                     onClick={() => confirm(`Remove ${m.name} from the table?\nThey can join again from the link. Their past votes stay in Past stories.`) && actions.removeMember(m.id)}><Trash2 /> Remove</Button></>}
@@ -374,7 +377,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
                   </>}
                   {shown && !result?.suggested && <Button size="lg" variant="outline" onClick={actions.revote}><RotateCcw /> No numbers yet · Revote</Button>}
                 </div>
-              ) : <p className="text-sm text-muted-foreground">{!room?.revealed ? `${roundVotes.length}/${voters.length} voted · the dealer shows the hand` : 'Waiting for the host to save the points…'}</p>}
+              ) : <p className="text-sm text-muted-foreground">{!room?.revealed ? `${roundVotes.length}/${voters.length} voted · the dealer shows the hand` : 'Waiting for the dealer to save the points…'}</p>}
               {isHost && shown && (
                 <div className="flex flex-wrap items-center justify-center gap-1.5 text-sm text-muted-foreground">
                   Or save a different number:

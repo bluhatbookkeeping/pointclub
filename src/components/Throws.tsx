@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { sfx } from '../lib/sounds'
 import type { RoomApi } from '../lib/useRoom'
+import { reactionFor } from '../lib/reactions'
 
 interface Flight { id: number; item: string; x0: number; y0: number; x1: number; y1: number }
 const center = (id: string) => {
@@ -22,8 +23,8 @@ export function Throws({ api }: { api: RoomApi }) {
     sfx.pop()
     setFlights((x) => [...x, f])
     setTimeout(() => {
-      setFlights((x) => x.filter((y) => y.id !== f.id)); setSplats((x) => [...x, f]); e.item === '🍅' ? sfx.splat() : sfx.pop()
-      setTimeout(() => setSplats((x) => x.filter((y) => y.id !== f.id)), 1200)
+      setFlights((x) => x.filter((y) => y.id !== f.id)); setSplats((x) => [...x, f]); reactionFor(e.item).sound()
+      setTimeout(() => setSplats((x) => x.filter((y) => y.id !== f.id)), 1800)
     }, 700)
   }), [api.actions])
   return (
@@ -36,8 +37,10 @@ export function Throws({ api }: { api: RoomApi }) {
       ))}
       <AnimatePresence>
         {splats.map((f) => (
-          <motion.div key={f.id} className="absolute text-5xl" style={{ left: f.x1 - 24, top: f.y1 - 24 }} initial={{ scale: 0.2 }} animate={{ scale: [1.6, 1] }} exit={{ opacity: 0, y: 30 }}>
-            {f.item === '🍅' ? '💥' : f.item === '🍿' ? '🍿' : '✨'}
+          <motion.div key={f.id} className="absolute grid place-items-center" style={{ left: f.x1, top: f.y1 }} initial={{ scale: 0.2, x: '-50%', y: '-50%' }} animate={{ scale: [1.5, 1], x: '-50%', y: '-50%' }} exit={{ opacity: 0, y: '-120%' }}>
+            <span className="text-5xl" style={f.item === '🍅' ? { transform: 'scaleY(0.6) scaleX(1.4)' } : undefined}>{f.item === '🍅' ? '🍅' : f.item}</span>
+            <span data-testid="reaction-word" className="-mt-1 -rotate-6 whitespace-nowrap rounded-md px-2 py-0.5 font-display text-2xl font-black tracking-wide text-white shadow-lg ring-2 ring-white"
+              style={{ background: reactionFor(f.item).color }}>{reactionFor(f.item).word}</span>
           </motion.div>
         ))}
       </AnimatePresence>
