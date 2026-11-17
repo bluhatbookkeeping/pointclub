@@ -33,7 +33,7 @@ function IconBtn({ tip, children, ...p }: React.ComponentProps<typeof Button> & 
 }
 
 export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi; openVault: () => void; openPlanner: () => void; onLobby: () => void }) {
-  const { room, members, me, current, lineup, backlog, roundVotes, myVote, isHost, result, actions, activeSprint, sprints, mode } = api
+  const { room, members, me, current, lineup, backlog, upNext, roundVotes, myVote, isHost, result, actions, activeSprint, sprints, mode } = api
   const here = members.filter((m) => m.status === 'here').sort((a, b) => a.name.localeCompare(b.name))
   const away = members.filter((m) => m.status === 'away')
   const [phase, setPhase] = useState<Phase>(room?.revealed ? 'shown' : 'voting')
@@ -127,7 +127,8 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
   /** Ready-to-send invite: the session's stories with ADO links, plus the join and agenda links. */
   const inviteEmail = () => {
     const agenda = new URL(roomLink()); agenda.searchParams.set('agenda', '1')
-    const list = lineup.filter((s) => !s.points)
+    const open = lineup.filter((s) => !s.points)
+    const list = open.length ? open : upNext
     return [
       'Hi team,',
       '',
@@ -196,9 +197,10 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
           <div className="sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto overflow-x-hidden p-3">
             <div className="mb-2 flex items-baseline justify-between px-2">
               <span className="label" data-testid="session-label">{(() => { const done = lineup.filter((x) => x.points).length; const n = lineup.length
-                return done ? `${activeSprint ? sessionName(activeSprint.name) : 'Session'} · ${done} of ${n} pointed` : `Next session · ${n === 0 ? 'no stories yet' : `${n} ${n === 1 ? 'story' : 'stories'}`}` })()}</span>
+                const nm = activeSprint ? sessionName(activeSprint.name) : 'Refinement session'
+                return n === 0 ? nm : `${nm} · ${done} of ${n} pointed` })()}</span>
             </div>
-            {lineup.length === 0 && <p className="text-sm text-muted-foreground px-2">{isHost ? 'Pick stories on the Plan stories page.' : 'Waiting for the host to pick stories.'}</p>}
+            {lineup.length === 0 && <p className="text-sm text-muted-foreground px-2">{isHost ? (upNext.length ? `${upNext.length} ${upNext.length === 1 ? 'story is' : 'stories are'} waiting in Next session.` : 'Pick stories on the Plan stories page.') : 'Waiting for the host to pick stories.'}</p>}
             <nav className="grid gap-0.5">
               <SortableList items={lineup} enabled={isHost} canDrag={(s) => !s.points && !s.skipped} onReorder={actions.reorder}
                 renderItem={(s, _i, handle) => (
@@ -269,8 +271,10 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
                   {isHost && <Button variant="outline" onClick={openPlanner}><ListChecks /> Plan stories</Button>}
                   {isHost && <Button onClick={() => setShowNewSprint(true)}><Clapperboard /> Finish session</Button>}
                 </div>
-              ) : <div className="flex flex-1 items-center gap-4"><span className="flex-1 text-muted-foreground">{lineup.length ? 'Pick a story on the left to start.' : isHost ? (backlog.length ? 'Pick the stories for this meeting on the Plan stories page.' : 'No stories yet. Add some to start.') : 'Waiting for the host…'}</span>
-                  {isHost && !lineup.length && <Button onClick={openPlanner}><ListChecks /> Plan stories <ArrowRight /></Button>}
+              ) : <div className="flex flex-1 items-center gap-4"><span className="flex-1 text-muted-foreground">{lineup.length ? 'Pick a story on the left to start.' : isHost ? (upNext.length ? `${upNext.length} ${upNext.length === 1 ? 'story is' : 'stories are'} ready in Next session.` : backlog.length ? 'Pick the stories for this meeting on the Plan stories page.' : 'No stories yet. Add some to start.') : 'Waiting for the host…'}</span>
+                  {isHost && !lineup.length && (upNext.length
+                    ? <Button onClick={() => actions.putOnTable()} data-testid="table-put">Put {upNext.length} {upNext.length === 1 ? 'story' : 'stories'} on the table <ArrowRight /></Button>
+                    : <Button onClick={openPlanner}><ListChecks /> Plan stories <ArrowRight /></Button>)}
                   {isHost && lineup.length > 0 && nextUnpointed && <Button onClick={() => actions.selectStory(nextUnpointed.id)}>Start with #{nextUnpointed.number} <ArrowRight /></Button>}
                 </div>}
             </CardContent>

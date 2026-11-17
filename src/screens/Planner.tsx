@@ -59,7 +59,7 @@ function LinkInput({ story, onDone }: { story: Story; onDone: (v: string) => voi
  * Every change saves immediately. Stories only leave the backlog by moving to the session or by Delete.
  */
 export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
-  const { backlog, lineup, isHost, actions, room, activeSprint } = api
+  const { backlog, lineup, upNext, isHost, actions, room, activeSprint } = api
   const [picked, setPicked] = useState<string[]>([])
   const [fresh, setFresh] = useState<string[]>([])
   const [linkNote, setLinkNote] = useState<string | null>(null)
@@ -69,7 +69,7 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
   useEffect(() => {
     if (!isHost || cleaned.current) return
     cleaned.current = true
-    for (const s of [...backlog, ...lineup]) { const t = stripLinks(s.title); if (t && t !== s.title) actions.editStory({ ...s, title: t }) }
+    for (const s of [...backlog, ...upNext, ...lineup]) { const t = stripLinks(s.title); if (t && t !== s.title) actions.editStory({ ...s, title: t }) }
   }, [isHost]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const add = async (rows: Parameters<typeof actions.addStories>[0]) => {
@@ -86,7 +86,7 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
     if (url && url.includes(s.number)) {
       const pattern = toAdoPattern(url)
       if (pattern.includes('{id}') && buildAdoUrl(pattern, s.number) === url && pattern !== room?.adoPattern) {
-        const missing = [...backlog, ...lineup].filter((x) => x.id !== s.id && !x.url).length
+        const missing = [...backlog, ...upNext, ...lineup].filter((x) => x.id !== s.id && !x.url).length
         await actions.setAdoPattern(pattern)
         setLinkNote(missing ? `Got it. Filled in ADO links for ${missing} more ${missing === 1 ? 'story' : 'stories'}.` : 'Got it. New stories will get their ADO link automatically.')
         setTimeout(() => setLinkNote(null), 6000)
@@ -94,7 +94,7 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
     }
   }
 
-  const moveIn = async (ids: string[]) => { await actions.moveToSession(ids); setPicked([]) }
+  const moveIn = async (ids: string[]) => { await actions.moveToNext(ids); setPicked([]) }
   const deletePicked = async () => {
     const list = backlog.filter((s) => picked.includes(s.id))
     if (!list.length) return
@@ -105,6 +105,7 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
   }
   const sessionLabel = activeSprint ? sessionName(activeSprint.name) : 'Session'
   const pointedCount = lineup.filter((s) => s.points).length
+  const skippedCount = lineup.filter((s) => !s.points && s.skipped).length
 
   return (
     <div className="min-h-screen">
@@ -196,38 +197,55 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
             )}
           </section>
 
-          {/* THIS SESSION */}
-          <section className="grid gap-3 rounded-xl border-2 border-primary/30 bg-card p-4 shadow-sm lg:sticky lg:top-20" data-testid="session-col">
+          {/* NEXT SESSION (waiting list) + what's on the table now */}
+          <div className="grid gap-4 lg:sticky lg:top-20">
+          <section className="grid gap-3 rounded-xl border-2 border-primary/30 bg-card p-4 shadow-sm" data-testid="session-col">
             <div>
-              <h2 className="text-lg font-semibold">Next session <span className="font-normal text-muted-foreground">· {sessionLabel}</span></h2>
-              <p className="text-xs text-muted-foreground" data-testid="session-count">{lineup.length === 0 ? 'No stories yet' : `${lineup.length} ${lineup.length === 1 ? 'story' : 'stories'}, in voting order`}{pointedCount ? ` · ${pointedCount} pointed` : ''}</p>
+              <h2 className="text-lg font-semibold">Next session</h2>
+              <p className="text-xs text-muted-foreground" data-testid="session-count">{upNext.length === 0 ? 'No stories yet' : `${upNext.length} ${upNext.length === 1 ? 'story' : 'stories'} picked for the next meeting, in voting order`}</p>
             </div>
-            {lineup.length === 0 ? (
+            {upNext.length === 0 ? (
               <p className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">Pick the stories for the next meeting.<br />Tick them in the backlog and click <b>Move to next session</b>,<br />or use <ArrowRight className="inline h-3.5 w-3.5" /> on a row.</p>
             ) : (
               <div className="grid gap-0.5">
-                <SortableList items={lineup} enabled={isHost} canDrag={(s) => !s.points && !s.skipped} onReorder={actions.reorder}
+                <SortableList items={upNext} enabled={isHost} onReorder={actions.reorder}
                   renderItem={(s, i, handle) => (
-                    <div data-testid="plan-session-row" className={cn('group flex items-start gap-2 rounded-md px-1.5 py-1.5 text-sm hover:bg-secondary/50', (s.points || s.skipped) && 'opacity-60')}>
-                      {isHost ? handle : null}
-                      <span className="mt-0.5 w-4 text-right font-mono text-xs text-muted-foreground">{i + 1}</span>
-                      {s.points ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> : s.skipped ? <SkipForward className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" /> : <Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/50" />}
-                      <span className="min-w-0 flex-1">
-                        <span className="block font-mono text-xs text-muted-foreground">#{s.number}</span>
-                        <span className="block break-words leading-snug">{s.title}</span>
-                      </span>
-                      {s.points && <Badge variant="secondary" className="font-mono">{label(s.points)} pts</Badge>}
-                      {s.skipped && !s.points && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">Skipped</Badge>}
-                      {isHost && !s.points && (
-                        <button className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground" title="Back to the top of the backlog" aria-label={`Move #${s.number} back to backlog`}
-                          onClick={() => actions.moveToBacklog(s.id)}><ArrowLeftToLine className="h-3.5 w-3.5" /> Backlog</button>
-                      )}
+                    <div data-testid="plan-session-row" className="group grid grid-cols-[1rem_1.25rem_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-secondary/50">
+                      {isHost ? handle : <span />}
+                      <span className="pt-1.5 text-right font-mono text-xs text-muted-foreground">{i + 1}</span>
+                      <div className="min-w-0">
+                        {isHost ? <>
+                          <Cell value={s.number} numeric className="w-28 font-mono" textClass="w-auto py-0.5 font-mono text-xs text-muted-foreground" ariaLabel={`Story number for #${s.number}`} onSave={(v) => save(s, { number: v })} />
+                          <Cell value={s.title} textClass="py-0.5 leading-snug break-words" ariaLabel={`Title for #${s.number}`} onSave={(v) => v && save(s, { title: v })} />
+                          {s.note && <div className="px-2 text-xs text-amber-800">{s.note}</div>}
+                        </> : <div className="px-2"><div className="font-mono text-xs text-muted-foreground">#{s.number}</div><div className="leading-snug">{s.title}</div></div>}
+                      </div>
+                      <div className="flex flex-col items-end gap-0.5">
+                        {isHost ? <LinkCell story={s} onSave={(v) => save(s, { url: v })} />
+                          : s.url ? <a href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2 py-1.5 text-xs text-primary hover:underline">ADO <ExternalLink className="h-3 w-3" /></a> : null}
+                        {isHost && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground" title="Back to the top of the backlog" aria-label={`Move #${s.number} back to backlog`}
+                          onClick={() => actions.moveToBacklog(s.id)}><ArrowLeftToLine className="h-3.5 w-3.5" /> Backlog</button>}
+                      </div>
                     </div>
                   )} />
               </div>
             )}
-            {lineup.length > 0 && <Button variant="outline" onClick={onBack}>Go to the table to point them <ArrowRight /></Button>}
+            {isHost && upNext.length > 0 && (
+              <Button onClick={async () => { await actions.putOnTable(); onBack() }} data-testid="put-on-table">
+                Put {upNext.length} on the table to point <ArrowRight />
+              </Button>
+            )}
           </section>
+
+          <section className="grid gap-1 rounded-xl border bg-card p-4 text-sm shadow-sm" data-testid="table-now">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-semibold">On the table now <span className="font-normal text-muted-foreground">· {sessionLabel}</span></h2>
+              <Button variant="ghost" size="sm" onClick={onBack}>Go to the table <ArrowRight /></Button>
+            </div>
+            <p className="text-muted-foreground">{lineup.length === 0 ? 'Nothing yet.' : `${lineup.length} ${lineup.length === 1 ? 'story' : 'stories'}: ${pointedCount} pointed, ${lineup.length - pointedCount - skippedCount} still to point${skippedCount ? `, ${skippedCount} skipped` : ''}.`}</p>
+            {lineup.length - pointedCount > 0 && <p className="text-xs text-muted-foreground">Ran out of time? Click <b>Finish session</b> at the table. Stories not pointed can go into next week’s session or back to the backlog.</p>}
+          </section>
+          </div>
         </div>
       </div>
     </div>

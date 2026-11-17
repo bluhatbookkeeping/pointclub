@@ -9,7 +9,9 @@ import type { RoomApi } from '@/lib/useRoom'
 
 /** Read-only story list for the upcoming session: share it before the meeting instead of an email. */
 export function Agenda({ api }: { api: RoomApi }) {
-  const { activeSprint, lineup } = api
+  const { activeSprint } = api
+  // Before the meeting, the stories waiting in Next session are the agenda.
+  const lineup = api.lineup.some((s) => !s.points) || !api.upNext.length ? api.lineup : api.upNext
   const joinUrl = () => { const u = new URL(location.href); u.searchParams.delete('agenda'); return u.toString() }
   const pointed = lineup.filter((s) => s.points)
   return (
