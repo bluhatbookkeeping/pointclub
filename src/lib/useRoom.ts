@@ -129,7 +129,7 @@ export function useRoom(roomId: string) {
     /** Returning on a new computer or browser: become your existing self (name, avatar, history, dealer role). */
     becomeMember(id: string) {
       setMyId(roomId, id)
-      try { sessionStorage.removeItem('pointclub:in:' + location.search) } catch { /* ignore */ }
+      try { sessionStorage.removeItem(`pointclub:in:${roomId}:${new URLSearchParams(location.search).get('p') ?? ''}`) } catch { /* ignore */ }
       location.reload()
     },
     /** Dealer tidy-up: take someone (e.g. an old test player) off this table's roster. Their past votes stay in history. */
@@ -139,7 +139,7 @@ export function useRoom(roomId: string) {
     /** Shared computer: forget who this browser is (they stay in the room, shown as "Not here yet") and start fresh. */
     switchPerson() {
       forgetMe(roomId)
-      try { sessionStorage.removeItem('pointclub:in:' + location.search) } catch { /* ignore */ }
+      try { sessionStorage.removeItem(`pointclub:in:${roomId}:${new URLSearchParams(location.search).get('p') ?? ''}`) } catch { /* ignore */ }
       location.reload()
     },
     async leave() { await db.removeMember(meId); forgetMe(roomId); location.reload() },
@@ -283,8 +283,9 @@ export function useRoom(roomId: string) {
     },
     async setAdoPattern(adoPattern: string) {
       await patchRoom({ adoPattern })
-      const missing = stories.filter((s) => !s.url)
-      if (missing.length) await db.upsertStories(missing.map((s) => ({ ...s, url: buildAdoUrl(adoPattern, s.number) })))
+      // Use the latest stories (an edit may have just landed) and only fill stories that have a number.
+      const missing = storiesRef.current.filter((s) => !s.url && s.number).map((s) => ({ ...s, url: buildAdoUrl(adoPattern, s.number) }))
+      if (missing.length) { putLocal(missing); await db.upsertStories(missing) }
     },
     /** Dealer: "Let's start". Ends the walk-in music for everyone and opens the first story waiting to be pointed. */
     async beginSession() {

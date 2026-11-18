@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Logo } from '@/components/Logo'
 
 export function Landing() {
-  const open = () => { location.search = '?room=' + Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 6) }
+  const open = () => { location.href = '/' + Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 6) }
   return (
     <div className="min-h-screen grid place-items-center px-6">
       <div className="max-w-xl text-center flex flex-col items-center gap-6">

@@ -122,3 +122,9 @@ export function parseHtmlLinks(html: string): ParsedStory[] {
   }
   return out
 }
+
+/** The work item number from an ADO link: …/_workitems/edit/653892, …?workitem=653892, or the last long number in it. */
+export function numberFromLink(url: string): string {
+  const u = url.trim()
+  return u.match(/(?:workitem=|\/edit\/|\/workitems?\/)(\d{3,8})/i)?.[1] ?? u.match(/(\d{4,8})(?!.*\d{4,8})/)?.[1] ?? ''
+}

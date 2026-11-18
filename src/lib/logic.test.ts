@@ -145,3 +145,12 @@ NGV2Services | Replace blocking .Result calls`
     ])
   })
 })
+
+import { numberFromLink } from './parseStories'
+describe('numberFromLink', () => {
+  it('reads the story number at the end of an ADO link', () => {
+    expect(numberFromLink('https://qtcado.qtcm.com/DefaultCollection/QTCAgile/_workitems/edit/653892')).toBe('653892')
+    expect(numberFromLink('https://qtcado.qtcm.com/DefaultCollection/QTCAgile/_backlogs/backlog/Team2/Stories/?workitem=655599')).toBe('655599')
+    expect(numberFromLink('https://dev.azure.com/org/proj/_workitems/edit/48213/')).toBe('48213')
+  })
+})

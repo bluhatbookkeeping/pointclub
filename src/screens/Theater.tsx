@@ -26,6 +26,7 @@ import { cn, sessionDate, sessionIso, sessionName } from '@/lib/utils'
 import { DECK, NUMERIC, Outcome } from '@/lib/types'
 import { isOnlineAt, isOpen, type RoomApi } from '@/lib/useRoom'
 import { REACTIONS } from '@/lib/reactions'
+import { numberFromLink } from '@/lib/parseStories'
 
 type Phase = 'voting' | 'countdown' | 'shown'
 
@@ -149,7 +150,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
     const w = Math.min(960, screen.availWidth / 2)
     window.open(current.url, 'pointclub-ado', `width=${w},height=${screen.availHeight},left=${screen.availWidth - w},top=0`)
   }
-  const copyLink = () => navigator.clipboard?.writeText(location.href.replace(/[?&]p=\d+/, '')).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) })
+  const copyLink = () => navigator.clipboard?.writeText(`${location.origin}/${room?.id ?? ''}`).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) })
   const pointedCount = lineup.filter((s) => s.points).length
   const nextUnpointed = lineup.find((s) => isOpen(s) && s.id !== current?.id && s.order > (current?.order ?? -1)) ?? lineup.find((s) => isOpen(s) && s.id !== current?.id)
   const skippedCount = lineup.filter((s) => s.skipped).length
@@ -163,30 +164,48 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
     if (wasDone.current === false && allDone) { setCelebrate(true); voice.done(); blockbusterBurst() }
     wasDone.current = allDone
   }, [allDone])
-  const roomLink = () => { const u = new URL(location.href); u.searchParams.delete('p'); u.searchParams.delete('agenda'); return u.toString() }
-  /** Ready-to-send invite: the session's stories with ADO links, plus the join and agenda links. */
+  /** The team's short link: pointclub-virid.vercel.app/abc123 (same link for new and returning people). */
+  const roomLink = () => `${location.origin}/${room?.id ?? ''}`
+  const inviteStories = () => { const open = lineup.filter((s) => !s.points); return open.length ? open : upNext }
+  const inviteIntro = () => `Here are the stories we'll point${activeSprint ? ` on ${sessionDate(activeSprint)} (${sessionName(activeSprint.name)})` : ' in our next session'}:`
+  const joinLine = 'Join here (same link every week; if you have joined before, you go straight to your seat):'
+  /** Plain-text invite (for the email app button): each link sits right under its title. */
   const inviteEmail = () => {
-    const agenda = new URL(roomLink()); agenda.searchParams.set('agenda', '1')
-    const open = lineup.filter((s) => !s.points)
-    const list = open.length ? open : upNext
+    const list = inviteStories()
     return [
-      'Hi team,',
-      '',
-      `Here are the stories we'll point${activeSprint ? ` on ${sessionDate(activeSprint)} (${sessionName(activeSprint.name)})` : ' in our next session'}:`,
-      '',
-      ...(list.length ? list.map((s, i) => `${i + 1}. #${s.number} ${s.title}${s.url ? `\n   ${s.url}` : ''}${s.note ? `\n   Note: ${s.note}` : ''}`) : ['(No stories picked yet.)']),
-      '',
-      'Please read through them before the meeting.',
-      '',
-      `Join the pointing session: ${roomLink()}`,
-      `Story list only: ${agenda.toString()}`,
-      '',
-      'Thanks!',
+      'Hi team,', '', inviteIntro(), '',
+      ...(list.length ? list.map((s, i) => `${i + 1}. ${s.number ? `#${s.number} ` : ''}${s.title}${s.url ? `\n${s.url}` : ''}${s.note ? `\nNote: ${s.note}` : ''}`) : ['(No stories picked yet.)']),
+      '', 'Please read through them before the meeting.', '', joinLine, roomLink(), '', 'Thanks!',
     ].join('\n')
   }
-  const copyAgenda = () => {
-    const u = new URL(location.href); u.searchParams.delete('p'); u.searchParams.set('agenda', '1')
-    navigator.clipboard?.writeText(u.toString()).then(() => { setAgendaCopied(true); setTimeout(() => setAgendaCopied(false), 1800) })
+  /** The same invite as rich text: each story title is the clickable ADO link. */
+  const inviteHtml = () => {
+    const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    const items = inviteStories().map((s) => {
+      const label = `${s.number ? `#${s.number} ` : ''}${s.title}`
+      return `<li>${s.url ? `<a href="${esc(s.url)}">${esc(label)}</a>` : esc(label)}${s.note ? `<br><i>Note: ${esc(s.note)}</i>` : ''}</li>`
+    }).join('')
+    return `<p>Hi team,</p><p>${esc(inviteIntro())}</p>${items ? `<ol>${items}</ol>` : '<p>(No stories picked yet.)</p>'}<p>Please read through them before the meeting.</p><p><a href="${esc(roomLink())}"><b>Get access to the room</b></a> (same link every week; if you've joined before, you go straight to your seat)</p><p>Thanks!</p>`
+  }
+  /** Copies the invite with clickable titles (paste into Outlook, Gmail or Teams); plain text as a fallback. */
+  const copyInvite = async () => {
+    // Copy as rich text so titles and "Get access to the room" stay clickable when pasted into Outlook, Gmail or Teams.
+    let done = false
+    try {
+      const box = document.createElement('div')
+      box.contentEditable = 'true'; box.innerHTML = inviteHtml()
+      Object.assign(box.style, { position: 'fixed', left: '-9999px', top: '0', opacity: '0' })
+      document.body.appendChild(box)
+      const range = document.createRange(); range.selectNodeContents(box)
+      const sel = window.getSelection(); sel?.removeAllRanges(); sel?.addRange(range)
+      done = document.execCommand('copy')
+      sel?.removeAllRanges(); box.remove()
+    } catch { /* try the next way */ }
+    if (!done) {
+      try { await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([inviteHtml()], { type: 'text/html' }), 'text/plain': new Blob([inviteEmail()], { type: 'text/plain' }) })]); done = true } catch { /* plain text */ }
+    }
+    if (!done) await navigator.clipboard?.writeText(inviteEmail())
+    setAgendaCopied(true); setTimeout(() => setAgendaCopied(false), 1800)
   }
   const totalPts = lineup.reduce((s, x) => s + (Number(x.points) || 0), 0)
   const hostHere = !!room && here.some((m) => m.id === room.hostId)
@@ -221,12 +240,13 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
                 <PopoverTrigger asChild><Button variant="ghost" size="sm" title="Copy an email inviting the team, with this session's stories and links"><Mail /><span className="hidden lg:inline">Invite team</span></Button></PopoverTrigger>
                 <PopoverContent align="end" className="w-[30rem] grid gap-2">
                   <div className="text-sm font-medium">Invite the team</div>
-                  <p className="text-xs text-muted-foreground">Copy this into an email or chat. It lists this session's stories with links, plus the join link.</p>
-                  <Textarea readOnly className="h-56 font-mono text-xs" value={invite ?? ''} onFocus={(e) => e.currentTarget.select()} />
+                  <p className="text-xs text-muted-foreground">Click <b>Copy email</b>, then paste into Outlook, Gmail or Teams. Each story title links to ADO, and "Get access to the room" links to the table.</p>
+                  <div className="max-h-64 overflow-y-auto rounded-md border bg-background p-3 text-sm [&_a]:text-primary [&_a]:underline [&_li]:mb-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-2" data-testid="invite-preview" dangerouslySetInnerHTML={{ __html: inviteHtml() }} />
+                  <Textarea readOnly className="sr-only" value={invite ?? ''} aria-label="Invite text" />
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" onClick={() => navigator.clipboard?.writeText(invite ?? '').then(() => { setAgendaCopied(true); setTimeout(() => setAgendaCopied(false), 1800) })}>{agendaCopied ? <Check /> : <Mail />} {agendaCopied ? 'Copied' : 'Copy email text'}</Button>
-                    <Button size="sm" variant="outline" asChild><a href={`mailto:?subject=${encodeURIComponent(`Story pointing: ${activeSprint ? `${sessionName(activeSprint.name)}, ${sessionDate(activeSprint)}` : 'this week'}`)}&body=${encodeURIComponent(invite ?? '')}`}>Open in email app</a></Button>
-                    <Button size="sm" variant="ghost" onClick={copyAgenda}><ListChecks /> Copy agenda link</Button>
+                    <Button size="sm" onClick={copyInvite} data-testid="copy-invite">{agendaCopied ? <Check /> : <Mail />} {agendaCopied ? 'Copied' : 'Copy email'}</Button>
+                    <Button size="sm" variant="outline" asChild><a href={`mailto:?subject=${encodeURIComponent(`Story pointing: ${activeSprint ? `${sessionName(activeSprint.name)}, ${sessionDate(activeSprint)}` : 'this week'}`)}&body=${encodeURIComponent(invite ?? '')}`}>Open in email app (plain text)</a></Button>
+                    <Button size="sm" variant="ghost" onClick={() => navigator.clipboard?.writeText(roomLink())}><Link2 /> Copy join link</Button>
                   </div>
                 </PopoverContent>
               </Popover>
@@ -324,7 +344,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
                     <Popover>
                       <PopoverTrigger asChild><Button variant="ghost" size="sm" className="shrink-0 text-muted-foreground">Add ADO link</Button></PopoverTrigger>
                       <PopoverContent align="end" className="w-96">
-                        <form className="grid gap-2" onSubmit={(e) => { e.preventDefault(); const url = String(new FormData(e.currentTarget).get('url') ?? '').trim(); if (url) actions.editStory({ ...current, url }) }}>
+                        <form className="grid gap-2" onSubmit={(e) => { e.preventDefault(); const url = String(new FormData(e.currentTarget).get('url') ?? '').trim(); if (url) actions.editStory({ ...current, url, number: current.number || numberFromLink(url) }) }}>
                           <div className="text-sm font-medium">ADO link for {current.number ? `#${current.number}` : 'this story'}</div>
                           <Input name="url" autoFocus placeholder="Paste the story's link from ADO" />
                           <Button type="submit" size="sm">Save link</Button>

@@ -1,3 +1,14 @@
 {
-  "functions": { "api/room.ts": { "includeFiles": "db/schema.sql", "maxDuration": 10 } }
+  "functions": {
+    "api/room.ts": {
+      "includeFiles": "db/schema.sql",
+      "maxDuration": 10
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/:room([A-Za-z0-9_-]+)",
+      "destination": "/index.html"
+    }
+  ]
 }

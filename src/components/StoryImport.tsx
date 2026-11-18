@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { readImage } from '@/lib/ocr'
-import { parseHtmlLinks, parseStories, type ParsedStory } from '@/lib/parseStories'
+import { numberFromLink, parseHtmlLinks, parseStories, type ParsedStory } from '@/lib/parseStories'
 
 // Password managers mistake these boxes for login fields and add their own icons; tell them to stay out.
 export const NO_AUTOFILL = { autoComplete: 'off', 'data-lpignore': 'true', 'data-1p-ignore': 'true', 'data-bwignore': 'true', 'data-form-type': 'other' } as const
@@ -22,7 +22,7 @@ export function StoryImport({ onAdd }: { onAdd: Add }) {
   const [note, setNote] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [raw, setRaw] = useState('')
-  const [one, setOne] = useState({ number: '', title: '' })
+  const [one, setOne] = useState({ number: '', title: '', url: '' })
   const [mode, setMode] = useState<'none' | 'one' | 'list'>('none')
   const [viewing, setViewing] = useState<number | null>(null)
   const numRef = useRef<HTMLInputElement>(null)
@@ -70,9 +70,9 @@ export function StoryImport({ onAdd }: { onAdd: Add }) {
   const addOne = async () => {
     if (!one.number.trim() || !one.title.trim()) { setError('Type a story number and a title.'); return }
     setError(null)
-    const r = await onAdd([{ number: one.number.trim(), title: one.title.trim() }])
+    const r = await onAdd([{ number: one.number.trim(), title: one.title.trim(), url: one.url || undefined }])
     setNote(r.added ? `Added #${one.number.trim()} to the backlog.` : `#${one.number.trim()} is already in the backlog or the next session.`)
-    setOne({ number: '', title: '' }); numRef.current?.focus()
+    setOne({ number: '', title: '', url: '' }); numRef.current?.focus()
   }
 
   return (
@@ -93,9 +93,11 @@ export function StoryImport({ onAdd }: { onAdd: Add }) {
       </div>
 
       {mode === 'one' && (
-        <form className="grid grid-cols-[7rem_1fr_auto] gap-2" onSubmit={(e) => { e.preventDefault(); addOne() }}>
-          <Input {...NO_AUTOFILL} ref={numRef} autoFocus className="h-9 font-mono" placeholder="Story #" inputMode="numeric" value={one.number} aria-label="New story number"
-            onChange={(e) => setOne({ ...one, number: e.target.value.replace(/\D/g, '') })} />
+        <form className="grid grid-cols-[10rem_1fr_auto] gap-2" onSubmit={(e) => { e.preventDefault(); addOne() }}>
+          <Input {...NO_AUTOFILL} ref={numRef} autoFocus className="h-9 font-mono" placeholder="Story # or ADO link" inputMode="numeric" value={one.number} aria-label="New story number"
+            onChange={(e) => setOne({ ...one, number: e.target.value.replace(/\D/g, '') })}
+            onPaste={(e) => { const t = e.clipboardData.getData('text').trim(); if (/^https?:\/\//i.test(t)) { e.preventDefault(); setOne({ ...one, number: numberFromLink(t), url: t }) } }}
+            title="Type the number, or paste the story's ADO link and the number is filled in" />
           <Input {...NO_AUTOFILL} className="h-9" placeholder="Story title" value={one.title} aria-label="New story title" onChange={(e) => setOne({ ...one, title: e.target.value })} />
           <Button type="submit" size="sm" className="h-9">Add to backlog</Button>
         </form>

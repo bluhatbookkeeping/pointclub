@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { SortableList } from '@/components/SortableList'
 import { NO_AUTOFILL, StoryImport } from '@/components/StoryImport'
 import { label } from '@/components/TicketCard'
-import { buildAdoUrl, stripLinks, toAdoPattern } from '@/lib/parseStories'
+import { buildAdoUrl, numberFromLink, stripLinks, toAdoPattern } from '@/lib/parseStories'
 import { cn, sessionDate, sessionName } from '@/lib/utils'
 import type { Story } from '@/lib/types'
 import type { RoomApi } from '@/lib/useRoom'
@@ -43,7 +43,7 @@ function LinkCell({ story, onSave }: { story: Story; onSave: (v: string) => void
   }
   return (
     <span className="flex items-center gap-1 px-2 py-1.5 text-xs">
-      <a href={story.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-primary hover:underline" title={story.url}>ADO <ExternalLink className="h-3 w-3" /></a>
+      <a href={story.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-primary hover:underline" title={story.url}>Link added <ExternalLink className="h-3 w-3" /></a>
       <button type="button" className="text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100" aria-label={`ADO link for #${story.number}`} title="Change link" onClick={() => setEditing(true)}><Pencil className="h-3 w-3" /></button>
     </span>
   )
@@ -83,12 +83,14 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
 
   /** Save one field. A pasted ADO link teaches Point Club the link pattern and fills every story missing one. */
   const save = async (s: Story, p: Partial<Story>) => {
+    // A pasted ADO link carries the story number at the end (…/edit/653892 or …?workitem=653892): fill in a missing number.
+    if (p.url && !s.number && !p.number) { const n = numberFromLink(p.url); if (n) { p = { ...p, number: n }; s = { ...s, number: n } } }
     await actions.editStory({ ...s, ...p })
     const url = p.url?.trim()
     if (url && url.includes(s.number)) {
       const pattern = toAdoPattern(url)
       if (pattern.includes('{id}') && buildAdoUrl(pattern, s.number) === url && pattern !== room?.adoPattern) {
-        const missing = [...backlog, ...upNext, ...lineup].filter((x) => x.id !== s.id && !x.url).length
+        const missing = [...backlog, ...upNext, ...lineup].filter((x) => x.id !== s.id && !x.url && x.number).length
         await actions.setAdoPattern(pattern)
         setLinkNote(missing ? `Got it. Filled in ADO links for ${missing} more ${missing === 1 ? 'story' : 'stories'}.` : 'Got it. New stories will get their ADO link automatically.')
         setTimeout(() => setLinkNote(null), 6000)
@@ -161,7 +163,7 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
                   </div>
                 )}
                 <div className="grid grid-cols-[1rem_1.5rem_1rem_5.5rem_minmax(0,1fr)_5.5rem_4.75rem] items-center gap-2 px-1.5 pb-1 text-xs font-medium text-muted-foreground">
-                  <span /><span className="text-right">#</span><span /><span className="px-2">Story</span><span className="px-2">Title</span><span className="px-2">ADO</span><span />
+                  <span /><span className="text-right">#</span><span /><span className="px-2">Story</span><span className="px-2">Title</span><span className="px-2">Link</span><span />
                 </div>
                 <SortableList items={backlog} enabled={isHost} onReorder={actions.reorder}
                   renderItem={(s, i, handle) => (
@@ -181,7 +183,7 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
                       </> : <>
                         <span className="px-2 font-mono text-sm">{s.number ? `#${s.number}` : 'No # yet'}</span>
                         <span className="min-w-0 px-2 py-1 text-sm leading-snug">{s.title}</span>
-                        <span className="px-2 py-1 text-xs">{s.url && <a href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">ADO <ExternalLink className="h-3 w-3" /></a>}</span>
+                        <span className="px-2 py-1 text-xs">{s.url && <a href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">Link added <ExternalLink className="h-3 w-3" /></a>}</span>
                       </>}
                       {isHost ? (
                         <span className="flex items-center justify-end gap-1 pt-1">
@@ -224,7 +226,7 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
                       </div>
                       <div className="flex flex-col items-end gap-0.5">
                         {isHost ? <LinkCell story={s} onSave={(v) => save(s, { url: v })} />
-                          : s.url ? <a href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2 py-1.5 text-xs text-primary hover:underline">ADO <ExternalLink className="h-3 w-3" /></a> : null}
+                          : s.url ? <a href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2 py-1.5 text-xs text-primary hover:underline">Link added <ExternalLink className="h-3 w-3" /></a> : null}
                         {isHost && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground" title="Back to the top of the backlog" aria-label={`Move #${s.number} back to backlog`}
                           onClick={() => actions.moveToBacklog(s.id)}><ArrowLeftToLine className="h-3.5 w-3.5" /> Backlog</button>}
                       </div>
@@ -262,8 +264,8 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
                         {locked ? <Badge variant="secondary" className="font-mono">{label(s.points!)} pts</Badge>
                           : s.skipped ? <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">Skipped</Badge>
                           : isHost ? <LinkCell story={s} onSave={(v) => save(s, { url: v })} />
-                          : s.url ? <a href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2 py-1.5 text-xs text-primary hover:underline">ADO <ExternalLink className="h-3 w-3" /></a> : null}
-                        {locked && s.url && <a href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-1 text-xs text-primary hover:underline">ADO <ExternalLink className="h-3 w-3" /></a>}
+                          : s.url ? <a href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2 py-1.5 text-xs text-primary hover:underline">Link added <ExternalLink className="h-3 w-3" /></a> : null}
+                        {locked && s.url && <a href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-1 text-xs text-primary hover:underline">Link added <ExternalLink className="h-3 w-3" /></a>}
                       </div>
                     </div>
                   )
