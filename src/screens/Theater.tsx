@@ -266,7 +266,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
                     : s.skipped ? <SkipForward className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                     : <Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/50" />}
                   <span className="flex-1 min-w-0">
-                    <span className="block font-mono text-xs text-muted-foreground">#{s.number}</span>
+                    <span className="block font-mono text-xs text-muted-foreground">{s.number ? `#${s.number}` : 'No # yet'}</span>
                     <span className={cn('block line-clamp-2 break-words leading-snug', s.id === current?.id && 'text-foreground')} title={s.title}>{s.title}</span>
                     {isHost && !s.url && !s.points && <span className="block text-[11px] text-amber-700">No ADO link</span>}
                   </span>
@@ -315,7 +315,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
                 <div className="flex-1 min-w-0">
                   <div className="label"><span className="text-accent">Now pointing</span> · Story {lineup.findIndex((s) => s.id === current.id) + 1} of {lineup.length}{room && room.round > 1 ? ` · Revote ${room.round - 1}` : ''}</div>
                   <h1 className={cn('mt-1 font-semibold tracking-tight break-words line-clamp-3', current.title.length > 70 ? 'text-lg' : 'text-2xl')} title={current.title}>
-                    <span className="font-mono text-accent">#{current.number}</span> {current.title}
+                    <span className="font-mono text-accent">{current.number ? `#${current.number}` : ''}</span> {current.title}
                   </h1>
                   {current.note && <p className="mt-1 text-sm text-amber-800">Note: {current.note}</p>}
                 </div>
@@ -325,7 +325,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
                       <PopoverTrigger asChild><Button variant="ghost" size="sm" className="shrink-0 text-muted-foreground">Add ADO link</Button></PopoverTrigger>
                       <PopoverContent align="end" className="w-96">
                         <form className="grid gap-2" onSubmit={(e) => { e.preventDefault(); const url = String(new FormData(e.currentTarget).get('url') ?? '').trim(); if (url) actions.editStory({ ...current, url }) }}>
-                          <div className="text-sm font-medium">ADO link for #{current.number}</div>
+                          <div className="text-sm font-medium">ADO link for {current.number ? `#${current.number}` : 'this story'}</div>
                           <Input name="url" autoFocus placeholder="Paste the story's link from ADO" />
                           <Button type="submit" size="sm">Save link</Button>
                         </form>

@@ -123,3 +123,25 @@ describe('session dates', () => {
   })
   it('next session defaults to a week after a future date', () => expect(nextWeek({ meetingDate: '2099-03-01' })).toBe('2099-03-08'))
 })
+
+import { parseHtmlLinks } from './parseStories'
+describe('pasting titles without numbers', () => {
+  const list = `Examinee Portal |  Show Up to Three Phone Numbers for Text and Voice Opt-In/Opt-Out
+Examinee Portal | Hide appointments in error (DBQ #300) from My Appointments
+Provider Portal: Add 2026 tax forms from Avalara
+NGV2Services | Replace blocking .Result calls`
+  it('keeps each line as a story with the number left blank', () => {
+    const r = parseStories(list, { allowMissingNumber: true })
+    expect(r.map((x) => x.number)).toEqual(['', '', '', ''])
+    expect(r[1].title).toBe('Examinee Portal | Hide appointments in error (DBQ #300) from My Appointments')
+    expect(r[2].title).toBe('Provider Portal: Add 2026 tax forms from Avalara')
+  })
+  it('is not used for screenshots (stray text there stays out)', () => expect(parseStories(list)).toEqual([]))
+  it('reads links and story numbers from pasted rich text', () => {
+    const html = '<ul><li><a href="https://qtcado.qtcm.com/DefaultCollection/QTCAgile/_backlogs/backlog/Team2/Stories/?workitem=655599">Examinee Portal | Show Up to Three Phone Numbers</a></li><li><a href="https://dev.azure.com/o/p/_workitems/edit/655805">Provider Portal: Add 2026 tax forms &amp; more</a></li></ul>'
+    expect(parseHtmlLinks(html)).toEqual([
+      { number: '655599', title: 'Examinee Portal | Show Up to Three Phone Numbers', url: 'https://qtcado.qtcm.com/DefaultCollection/QTCAgile/_backlogs/backlog/Team2/Stories/?workitem=655599' },
+      { number: '655805', title: 'Provider Portal: Add 2026 tax forms & more', url: 'https://dev.azure.com/o/p/_workitems/edit/655805' },
+    ])
+  })
+})

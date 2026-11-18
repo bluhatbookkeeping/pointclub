@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { readImage } from '@/lib/ocr'
-import { parseStories, type ParsedStory } from '@/lib/parseStories'
+import { parseHtmlLinks, parseStories, type ParsedStory } from '@/lib/parseStories'
 
 // Password managers mistake these boxes for login fields and add their own icons; tell them to stay out.
 export const NO_AUTOFILL = { autoComplete: 'off', 'data-lpignore': 'true', 'data-1p-ignore': 'true', 'data-bwignore': 'true', 'data-form-type': 'other' } as const
@@ -63,8 +63,8 @@ export function StoryImport({ onAdd }: { onAdd: Add }) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const addList = async () => {
-    const found = parseStories(raw)
-    if (!found.length) { setError('No stories found. Put one story per line: the number, then the title.'); return }
+    const found = parseStories(raw, { allowMissingNumber: true })
+    if (!found.length) { setError('No stories found. Put one story per line.'); return }
     setError(null); report('List added', await onAdd(found)); setRaw('')
   }
   const addOne = async () => {
@@ -102,8 +102,13 @@ export function StoryImport({ onAdd }: { onAdd: Add }) {
       )}
       {mode === 'list' && (
         <div className="grid gap-2">
-          <p className="text-xs text-muted-foreground">One story per line: the story number, then the title.</p>
-          <Textarea autoFocus className="h-24 font-mono text-xs" placeholder={'123456 Story title\n123457 Another story title'} value={raw} onChange={(e) => setRaw(e.target.value)} aria-label="Paste stories" />
+          <p className="text-xs text-muted-foreground">One story per line. The story number is optional (you can add it after). Copying from ADO, an email or a doc where the titles are links? Paste here and the links come along, with the story numbers read from them.</p>
+          <Textarea autoFocus onPaste={async (e) => {
+            // Titles that are links (from ADO, email, Word, Excel): keep the link and read the story number from it.
+            const html = e.clipboardData.getData('text/html')
+            const linked = html ? parseHtmlLinks(html) : []
+            if (linked.length) { e.preventDefault(); setError(null); report(`Pasted ${linked.length} linked ${linked.length === 1 ? 'story' : 'stories'}`, await onAdd(linked)) }
+          }} className="h-24 font-mono text-xs" placeholder={'123456 Story title\nStory title without a number'} value={raw} onChange={(e) => setRaw(e.target.value)} aria-label="Paste stories" />
           <Button size="sm" className="justify-self-start" disabled={!raw.trim()} onClick={addList}>Add list to backlog</Button>
         </div>
       )}

@@ -14,9 +14,11 @@ export const isOnlineAt = (m: { lastSeen: number }, now: number) => now - (m.las
 export const isOpen = (s: Story) => !s.points && !s.skipped
 
 /** Stories whose number isn't already in the backlog or session (and not repeated within the batch). */
-export function onlyNew<T extends { number: string }>(existing: { number: string }[], rows: T[]): T[] {
-  const seen = new Set(existing.map((s) => s.number))
-  return rows.filter((r) => (seen.has(r.number) ? false : (seen.add(r.number), true)))
+export function onlyNew<T extends { number: string; title?: string }>(existing: { number: string; title?: string }[], rows: T[]): T[] {
+  // Same story number = same story. Stories without a number yet are matched by title instead.
+  const key = (r: { number: string; title?: string }) => (r.number ? r.number : 't:' + (r.title ?? '').trim().toLowerCase())
+  const seen = new Set(existing.map(key))
+  return rows.filter((r) => (seen.has(key(r)) ? false : (seen.add(key(r)), true)))
 }
 
 /** Renumber stories 0..n in the given order; returns only the ones whose order changed. */
@@ -205,7 +207,7 @@ export function useRoom(roomId: string) {
       if (!activeSprint || !room) return { added: [] as Story[], skipped: rows.length }
       const all = storiesRef.current
       const planned = all.filter((s) => s.sprintId === backlogId || s.sprintId === nextId || s.sprintId === activeSprint.id)
-      const fresh = onlyNew(planned, rows.map((r) => ({ ...r, number: r.number.trim(), title: r.title.trim() })).filter((r) => r.number && r.title))
+      const fresh = onlyNew(planned, rows.map((r) => ({ ...r, number: r.number.trim(), title: r.title.trim() })).filter((r) => r.title))
       const target = to === 'backlog' ? backlogId : activeSprint.id
       const list = all.filter((s) => s.sprintId === target)
       if (to === 'backlog' && !snap.sprints.some((s) => s.id === backlogId))

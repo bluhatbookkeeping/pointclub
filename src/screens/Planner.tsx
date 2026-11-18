@@ -172,14 +172,14 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
                       {isHost ? <input type="checkbox" className="mt-2 h-4 w-4 accent-[hsl(var(--primary))]" checked={picked.includes(s.id)} aria-label={`Pick #${s.number}`}
                         onChange={(e) => setPicked((p) => (e.target.checked ? [...p, s.id] : p.filter((x) => x !== s.id)))} /> : <span />}
                       {isHost ? <>
-                        <Cell value={s.number} numeric className="font-mono" textClass="font-mono text-sm" ariaLabel={`Story number for #${s.number}`} onSave={(v) => save(s, { number: v })} />
+                        <Cell value={s.number} numeric placeholder="Add #" className="font-mono" textClass={cn("font-mono text-sm", !s.number && "text-amber-700")} ariaLabel={`Story number for #${s.number}`} onSave={(v) => save(s, { number: v })} />
                         <div className="min-w-0">
                           <Cell value={s.title} textClass="text-sm leading-snug line-clamp-2 break-words" ariaLabel={`Title for #${s.number}`} onSave={(v) => v && save(s, { title: v })} />
                           {s.note && <div className="truncate px-2 text-xs text-amber-800" title={s.note}>{s.note}</div>}
                         </div>
                         <LinkCell story={s} onSave={(v) => save(s, { url: v })} />
                       </> : <>
-                        <span className="px-2 font-mono text-sm">#{s.number}</span>
+                        <span className="px-2 font-mono text-sm">{s.number ? `#${s.number}` : 'No # yet'}</span>
                         <span className="min-w-0 px-2 py-1 text-sm leading-snug">{s.title}</span>
                         <span className="px-2 py-1 text-xs">{s.url && <a href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">ADO <ExternalLink className="h-3 w-3" /></a>}</span>
                       </>}
@@ -217,10 +217,10 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
                       <span className="pt-1.5 text-right font-mono text-xs text-muted-foreground">{i + 1}</span>
                       <div className="min-w-0">
                         {isHost ? <>
-                          <Cell value={s.number} numeric className="w-28 font-mono" textClass="w-auto py-0.5 font-mono text-xs text-muted-foreground" ariaLabel={`Story number for #${s.number}`} onSave={(v) => save(s, { number: v })} />
+                          <Cell value={s.number} numeric placeholder="Add #" className="w-28 font-mono" textClass={cn("w-auto py-0.5 font-mono text-xs", s.number ? "text-muted-foreground" : "text-amber-700")} ariaLabel={`Story number for #${s.number}`} onSave={(v) => save(s, { number: v })} />
                           <Cell value={s.title} textClass="py-0.5 leading-snug break-words" ariaLabel={`Title for #${s.number}`} onSave={(v) => v && save(s, { title: v })} />
                           {s.note && <div className="px-2 text-xs text-amber-800">{s.note}</div>}
-                        </> : <div className="px-2"><div className="font-mono text-xs text-muted-foreground">#{s.number}</div><div className="leading-snug">{s.title}</div></div>}
+                        </> : <div className="px-2"><div className="font-mono text-xs text-muted-foreground">{s.number ? `#${s.number}` : 'No # yet'}</div><div className="leading-snug">{s.title}</div></div>}
                       </div>
                       <div className="flex flex-col items-end gap-0.5">
                         {isHost ? <LinkCell story={s} onSave={(v) => save(s, { url: v })} />
@@ -254,9 +254,9 @@ export function Planner({ api, onBack }: { api: RoomApi; onBack: () => void }) {
                       <span className="pt-1.5 text-right font-mono text-xs text-muted-foreground">{i + 1}</span>
                       <div className="min-w-0">
                         {isHost && !locked && !s.skipped ? <>
-                          <Cell value={s.number} numeric className="w-28 font-mono" textClass="w-auto py-0.5 font-mono text-xs text-muted-foreground" ariaLabel={`Story number for #${s.number}`} onSave={(v) => save(s, { number: v })} />
+                          <Cell value={s.number} numeric placeholder="Add #" className="w-28 font-mono" textClass={cn("w-auto py-0.5 font-mono text-xs", s.number ? "text-muted-foreground" : "text-amber-700")} ariaLabel={`Story number for #${s.number}`} onSave={(v) => save(s, { number: v })} />
                           <Cell value={s.title} textClass="py-0.5 leading-snug break-words" ariaLabel={`Title for #${s.number}`} onSave={(v) => v && save(s, { title: v })} />
-                        </> : <div className="px-2"><div className="font-mono text-xs text-muted-foreground">#{s.number}</div><div className="leading-snug">{s.title}</div></div>}
+                        </> : <div className="px-2"><div className="font-mono text-xs text-muted-foreground">{s.number ? `#${s.number}` : 'No # yet'}</div><div className="leading-snug">{s.title}</div></div>}
                       </div>
                       <div className="flex flex-col items-end gap-0.5 pt-0.5">
                         {locked ? <Badge variant="secondary" className="font-mono">{label(s.points!)} pts</Badge>

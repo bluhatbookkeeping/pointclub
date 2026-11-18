@@ -44,7 +44,7 @@ function cleanTitle(title: string): string {
  * Handles ADO backlog screenshots where each line is "<row #> <work item ID> <title>": the short row number is
  * ignored and the long work item ID becomes the story number. A link on the same line becomes the story's link.
  */
-export function parseStories(text: string): ParsedStory[] {
+export function parseStories(text: string, opts: { allowMissingNumber?: boolean } = {}): ParsedStory[] {
   const lines = text.split(/\r?\n/).map((l) => l.replace(/[•●○◆■□]/g, ' ').replace(/^[\s|]+|[\s|]+$/g, '').replace(/\s+/g, ' ').trim()).filter(Boolean)
   const out: ParsedStory[] = []
   const seen = new Set<string>()
@@ -65,7 +65,17 @@ export function parseStories(text: string): ParsedStory[] {
     const m2 = rest.match(/^[:.\-–—|)\]]*\s*#?(\S+)\s*(.*)$/)
     const second = asNumber(m2?.[1])
     if (second && second.length >= 5 && rowNum) { number = second; rest = m2![2] ?? '' }
-    if (!number) continue
+    if (!number) {
+      // Pasted list of titles without numbers: keep them (number from the link if there is one, else left blank to fill in).
+      if (!opts.allowMissingNumber || !/[A-Za-z]{3}/.test(line) || line.length < 6) continue
+      const fromUrl = url?.match(/(\d{4,8})(?!.*\d{4,8})/)?.[1] ?? ''
+      const t = cleanTitle(line)
+      const key = fromUrl || 't:' + t.toLowerCase()
+      if (t.length < 3 || seen.has(key)) continue
+      seen.add(key)
+      out.push(url ? { number: fromUrl, title: t, url } : { number: fromUrl, title: t })
+      continue
+    }
 
     let title = cleanTitle(rest)
     // Number alone on a line: the title is usually the next line.
@@ -88,4 +98,27 @@ export function toAdoPattern(input: string): string {
   if (!s || s.includes('{id}')) return s
   const m = s.match(/^(.*?)(\d{3,8})(\D*)$/) // last run of digits is the work item id
   return m ? `${m[1]}{id}${m[3]}` : s
+}
+
+/**
+ * Stories from pasted rich text (ADO, email, Word, Excel) where each title is a link: the link becomes the story's
+ * ADO link and the work item number is read from it (e.g. ...?workitem=650454 or .../edit/650454).
+ */
+export function parseHtmlLinks(html: string): ParsedStory[] {
+  const out: ParsedStory[] = []
+  const seen = new Set<string>()
+  const decode = (t: string) => t.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim()
+  for (const m of html.matchAll(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
+    const url = decode(m[1]); const text = decode(m[2])
+    if (!/^https?:\/\//i.test(url) || !/[A-Za-z]{3}/.test(text)) continue
+    const number = url.match(/(?:workitem=|\/edit\/|\/workitems?\/)(\d{3,8})/i)?.[1] ?? url.match(/(\d{5,8})(?!.*\d{5,8})/)?.[1] ?? ''
+    // The link text may itself start with the number ("650454 Title"); keep just the title.
+    const lead = text.match(/^#?(\d{3,8})\s*[:\-–—]?\s*(.*)$/)
+    const title = cleanTitle(lead && (!number || lead[1] === number) ? lead[2] : text)
+    const num = number || lead?.[1] || ''
+    const key = num || 't:' + title.toLowerCase()
+    if (title.length < 3 || seen.has(key)) continue
+    seen.add(key); out.push({ number: num, title, url })
+  }
+  return out
 }

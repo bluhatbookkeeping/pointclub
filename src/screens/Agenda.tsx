@@ -39,7 +39,7 @@ export function Agenda({ api }: { api: RoomApi }) {
                 <span className="w-6 pt-0.5 text-right text-sm tabular-nums text-muted-foreground">{i + 1}.</span>
                 {s.points ? <Check className="mt-1 h-4 w-4 shrink-0 text-emerald-600" /> : s.skipped ? <SkipForward className="mt-1 h-4 w-4 shrink-0 text-amber-600" /> : <Circle className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/40" />}
                 <div className="min-w-0 flex-1">
-                  <div className="break-words"><span className="font-mono text-sm text-muted-foreground">#{s.number}</span> <span className="font-medium">{s.title}</span></div>
+                  <div className="break-words"><span className="font-mono text-sm text-muted-foreground">{s.number ? `#${s.number}` : 'No # yet'}</span> <span className="font-medium">{s.title}</span></div>
                   {s.note && <div className="text-sm text-amber-800">Note: {s.note}</div>}
                 </div>
                 {s.points && <Badge variant="secondary" className="font-mono">{label(s.points)} pts</Badge>}
