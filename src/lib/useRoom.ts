@@ -132,6 +132,8 @@ export function useRoom(roomId: string) {
     },
     /** Dealer tidy-up: take someone (e.g. an old test player) off this table's roster. Their past votes stay in history. */
     async removeMember(id: string) { if (id !== meId) await db.removeMember(id) },
+    /** Dealer: clear the table's roster (everyone but you). Stories and Past stories stay. People rejoin from the link. */
+    async removeEveryoneElse() { for (const m of members) if (m.id !== meId) await db.removeMember(m.id) },
     /** Shared computer: forget who this browser is (they stay in the room, shown as "Not here yet") and start fresh. */
     switchPerson() {
       forgetMe(roomId)

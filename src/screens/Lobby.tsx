@@ -12,7 +12,7 @@ import { cn, sessionDate, sessionName } from '@/lib/utils'
 import type { RoomApi } from '@/lib/useRoom'
 
 export function Lobby({ api, onEnter }: { api: RoomApi; onEnter: () => void }) {
-  const { me, members, activeSprint, actions } = api
+  const { me, members, activeSprint, actions, room } = api
   // People on this table's roster who aren't at the table right now: someone on a new computer can tap their name.
   const returning = members.filter((m) => m.id !== me?.id && !isOnlineAt(m, Date.now())).sort((a, b) => a.name.localeCompare(b.name))
   const taken = new Set(members.filter((m) => m.id !== me?.id).map((m) => m.character))
@@ -46,6 +46,12 @@ export function Lobby({ api, onEnter }: { api: RoomApi; onEnter: () => void }) {
           <CardFooter className="flex-col gap-1 text-xs text-muted-foreground">
             <span>Now: {sprintLine}</span>
             <button className="underline hover:text-foreground" data-testid="switch-person" onClick={actions.switchPerson}>Not {me.name}? Join as someone new (shared computer)</button>
+            {room?.hostId === me.id && members.length > 1 && (
+              <button className="mt-2 text-destructive underline hover:opacity-80" data-testid="clear-roster"
+                onClick={() => confirm(`Remove all ${members.length - 1} other people from this table?\nYour stories and Past stories stay. Everyone rejoins by opening the link and picking an avatar.`) && actions.removeEveryoneElse()}>
+                Dealer: remove everyone else from this table ({members.length - 1})
+              </button>
+            )}
           </CardFooter>
         </Card>
       </div>
