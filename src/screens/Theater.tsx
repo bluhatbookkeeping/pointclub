@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Camera, Clapperboard, Crown, ExternalLink, FolderOpen, Link2, RotateCcw, Volume2, VolumeX, UserRound, Eye, Check, Circle, MessageSquare, MessageSquareOff, ArrowRight, SkipForward, ListChecks, Undo2, Plus, Minus, Trash2, Mail, ArrowUpToLine, Music } from 'lucide-react'
+import { Camera, Clapperboard, Crown, ExternalLink, FolderOpen, Link2, RotateCcw, Volume2, VolumeX, UserRound, Eye, Check, Circle, MessageSquare, MessageSquareOff, ArrowRight, SkipForward, ListChecks, Undo2, Plus, Minus, Trash2, Mail, ArrowUpToLine, Music, BellRing, Palette } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
 import { PokerTable } from '@/components/PokerTable'
 import { TicketCard, label } from '@/components/TicketCard'
@@ -26,6 +26,7 @@ import { cn, sessionDate, sessionIso, sessionName } from '@/lib/utils'
 import { DECK, NUMERIC, Outcome } from '@/lib/types'
 import { isOnlineAt, isOpen, type RoomApi } from '@/lib/useRoom'
 import { REACTIONS } from '@/lib/reactions'
+import { Nudge } from '@/components/Nudge'
 import { numberFromLink } from '@/lib/parseStories'
 
 type Phase = 'voting' | 'countdown' | 'shown'
@@ -65,6 +66,26 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
   // Who votes: everyone here except the dealer (the host), unless the host turned on "Vote too".
   const voters = here.filter((m) => room?.hostVotes || m.id !== room?.hostId)
   const allIn = voters.length > 0 && voters.every((m) => roundVotes.some((v) => v.memberId === m.id))
+  // Nudge: once everyone but one or two has voted, call the missing people out by name. Once per person per story,
+  // automatically ~3 seconds after the others are in (sent by the dealer's screen so it only happens once).
+  const missing = voters.filter((m) => !roundVotes.some((v) => v.memberId === m.id))
+  const nudged = useRef(new Set<string>())
+  const nudgeKey = (id: string) => `${current?.id}:${room?.round}:${id}`
+  const [bump, setBump] = useState<string[]>([])
+  const onNudged = (ids: string[]) => { ids.forEach((id) => nudged.current.add(nudgeKey(id))); setBump(ids); setTimeout(() => setBump([]), 2500) }
+  const sendNudge = (ids: string[]) => {
+    const fresh = ids.filter((id) => !nudged.current.has(nudgeKey(id)))
+    if (!fresh.length || !me) return
+    fresh.forEach((id) => nudged.current.add(nudgeKey(id)))
+    actions.send({ kind: 'nudge', from: me.id, to: fresh, line: Math.floor(Math.random() * 1000) })
+  }
+  const missingKey = missing.map((m) => m.id).join(',')
+  useEffect(() => {
+    if (!isHost || !begun || !current || current.points || current.skipped || room?.revealed) return
+    if (!roundVotes.length || !missing.length || missing.length > 2) return
+    const t = setTimeout(() => sendNudge(missing.map((m) => m.id)), 3000)
+    return () => clearTimeout(t)
+  }, [isHost, begun, current?.id, room?.round, room?.revealed, missingKey, roundVotes.length]) // eslint-disable-line react-hooks/exhaustive-deps
   // Lounge music while people are voting; it fades out once every card is in or the hand is shown.
   // Intro music while people arrive, until the dealer picks the first story. The dealer can switch music off for everyone.
   const musicOff = !!room?.musicOff
@@ -254,6 +275,23 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
             <Button variant="ghost" size="sm" onClick={openVault} title="Past stories (every session's stories and votes)"><FolderOpen /><span className="hidden lg:inline">Past stories</span></Button>
             <IconBtn tip={copied ? 'Copied!' : 'Copy room link'} onClick={copyLink}>{copied ? <Check /> : <Link2 />}</IconBtn>
             <IconBtn tip={voices ? 'Turn voice lines off' : 'Turn voice lines on'} onClick={() => { setVoicesEnabled(!voices); setVoices(!voices) }}>{voices ? <MessageSquare /> : <MessageSquareOff />}</IconBtn>
+            {isHost && <Popover>
+              <PopoverTrigger asChild><Button variant="ghost" size="icon" aria-label="Table style" title="Table style and name" data-testid="table-style"><Palette /></Button></PopoverTrigger>
+              <PopoverContent align="end" className="grid w-72 gap-3">
+                <div className="text-sm font-medium">Table style</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {([['vegas', 'Vegas green', 'radial-gradient(#12804f,#07462a)'], ['leidos', 'Leidos purple', 'radial-gradient(#901588,#251846)']] as const).map(([k, label, bg]) => (
+                    <button key={k} onClick={() => actions.setTableStyle({ theme: k })} data-testid={`style-${k}`}
+                      className={cn('grid gap-1.5 rounded-lg border p-2 text-xs font-medium', (room?.theme ?? 'vegas') === k ? 'border-primary ring-2 ring-primary/30' : 'hover:bg-secondary')}>
+                      <span className="h-10 rounded-full" style={{ background: bg }} />{label}
+                    </button>
+                  ))}
+                </div>
+                <label className="grid gap-1.5 text-sm"><span className="font-medium">Name on the table</span>
+                  <Input defaultValue={room?.tableName ?? ''} placeholder="e.g. Team 2" maxLength={30} aria-label="Table name"
+                    onBlur={(e) => actions.setTableStyle({ tableName: e.target.value.trim() })} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }} /></label>
+              </PopoverContent>
+            </Popover>}
             {isHost ? <IconBtn tip={musicOff ? 'Music is off for everyone. Click to turn it on' : 'Music is on for everyone. Click to turn it off'} data-testid="music-switch" onClick={() => actions.setMusicOff(!musicOff)}>{musicOff ? <MusicOff /> : <Music />}</IconBtn>
               : musicOff && <span className="text-xs text-muted-foreground" data-testid="music-off-note">Music off</span>}
             <IconBtn tip={muted ? 'Unmute' : 'Mute'} onClick={() => { setMuted(!muted); setMute(!muted); votingMusic(muted ? votingNow : false); walkInMusic(muted ? !begun : false) }}>{muted ? <VolumeX /> : <Volume2 />}</IconBtn>
@@ -372,13 +410,15 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
           </Card>
 
           {/* The table */}
-          <PokerTable faceUp={shown} votesIn={roundVotes.length} center={shown && result ? <Results result={result} /> : undefined} seats={here.map((m) => {
+          <PokerTable theme={room?.theme === 'leidos' ? 'leidos' : 'vegas'} tableName={room?.tableName} faceUp={shown} votesIn={roundVotes.length} center={shown && result ? <Results result={result} /> : undefined} seats={here.map((m) => {
             const v = voteOf(m.id)
             return {
               member: m, vote: v, isMe: m.id === me?.id, isHost: room?.hostId === m.id, dealer: room?.hostId === m.id && !room?.hostVotes,
               spotlight: !!(spotlight && v && spotlight.has(v)),
               mood: shown && verdict === 'blockbuster' ? 'cheer' : shown && verdict === 'plottwist' ? 'shock' : !v && current && !shown ? 'thinking' : 'idle',
+              nudged: bump.includes(m.id),
               menu: m.id === me?.id ? undefined : <>
+                {begun && current && !current.points && !room?.revealed && missing.some((x) => x.id === m.id) && !nudged.current.has(nudgeKey(m.id)) && <><Button variant="ghost" size="sm" onClick={() => sendNudge([m.id])} aria-label={`Nudge ${m.name}`}><BellRing /> Nudge</Button><Separator orientation="vertical" className="h-6 mx-1" /></>}
                 <span className="px-1 text-xs font-medium text-muted-foreground">Throw at {m.name}:</span>
                 {REACTIONS.map((r) => <Button key={r.item} variant="ghost" className="h-auto flex-col gap-0 px-2 py-1" title={`${r.name}: ${r.meaning}`} aria-label={`Throw ${r.name} at ${m.name}`}
                   onClick={() => actions.send({ kind: 'throw', from: me!.id, to: m.id, item: r.item })}><span className="text-xl leading-none">{r.item}</span><span className="text-[10px] font-normal text-muted-foreground">{r.meaning}</span></Button>)}
@@ -454,7 +494,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
             {current && !room?.revealed && (myVote === 'pass'
               ? <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="sitting-out">You're sitting this one out. <Button size="sm" variant="ghost" onClick={() => actions.vote('pass')}>Vote after all</Button></div>
               : <Button size="sm" variant="ghost" className="text-xs text-muted-foreground" data-testid="sit-out" title="Skip voting on this story (e.g. you wrote it). Counts as done; left out of the result." onClick={() => actions.vote('pass')}>Sit this one out</Button>)}
-            <div className="flex justify-center gap-3">
+            <div className={cn('flex justify-center gap-3 rounded-xl transition', me && bump.includes(me.id) && 'animate-pulse ring-4 ring-primary/40')}>
               {DECK.map((v) => <TicketCard key={v} value={v} color={me ? castById(me.character).color : undefined} selected={myVote === v} disabled={!current || !!current.points || !!room?.revealed} onClick={() => { sfx.pick(); actions.vote(v) }} />)}
             </div>
             </div>
@@ -465,6 +505,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
       </div>
 
       <Throws api={api} />
+      <Nudge api={api} onNudged={onNudged} />
       <AnimatePresence>{phase === 'countdown' && <Countdown onDone={finishCountdown} />}</AnimatePresence>
       <AnimatePresence>{verdict && verdict !== 'none' && <Verdict outcome={verdict} points={result?.suggested ?? ''} />}</AnimatePresence>
       <AnimatePresence>{celebrate && <Celebration points={totalPts} stories={pointedCount} skipped={skippedCount} onClose={() => setCelebrate(false)} />}</AnimatePresence>

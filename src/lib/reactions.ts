@@ -10,3 +10,17 @@ export const REACTIONS = [
   { item: '☕', name: 'Coffee', meaning: 'Need a break', word: 'BREAK TIME!', color: '#92400e', sound: () => sfx.pop() },
 ] as const
 export const reactionFor = (item: string) => REACTIONS.find((r) => r.item === item) ?? REACTIONS[0]
+
+/** Friendly nudges for whoever hasn't voted yet. {name} is filled in. */
+export const NUDGES = [
+  "Hey {name}, we're still waiting on you. Got a number?",
+  'Earth to {name}! Ready to vote?',
+  'All eyes on {name}. Do you have a number?',
+  '{name}, take your time… just not too much time.',
+  "The table's waiting, {name}. What's your card?",
+  '{name}, the cards are getting cold. Ready?',
+]
+export const nudgeLine = (i: number, names: string[]) => {
+  const who = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0] ?? ''
+  return NUDGES[i % NUDGES.length].replace('{name}', who)
+}

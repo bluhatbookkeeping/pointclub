@@ -66,3 +66,5 @@ alter table rooms add column if not exists host_votes boolean;
 alter table sprints add column if not exists meeting_date text;
 alter table sprints add column if not exists begun_at bigint;
 alter table rooms add column if not exists music_off boolean;
+alter table rooms add column if not exists theme text;
+alter table rooms add column if not exists table_name text;

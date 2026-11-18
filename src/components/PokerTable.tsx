@@ -26,9 +26,10 @@ function railPoint(t: number, off: number) {
   return { x: 50, y: 100 }
 }
 
-export interface SeatInfo { member: Member; vote: CardValue | null; isHost: boolean; isMe: boolean; spotlight: boolean; mood: 'idle' | 'thinking' | 'cheer' | 'shock'; menu?: React.ReactNode; dealer?: boolean }
+export interface SeatInfo { member: Member; vote: CardValue | null; isHost: boolean; isMe: boolean; spotlight: boolean; mood: 'idle' | 'thinking' | 'cheer' | 'shock'; menu?: React.ReactNode; dealer?: boolean; nudged?: boolean }
 
-export function PokerTable({ seats, faceUp, votesIn, center }: { seats: SeatInfo[]; faceUp: boolean; votesIn: number; center?: React.ReactNode }) {
+export function PokerTable({ seats, faceUp, votesIn, center, theme = 'vegas', tableName }: { seats: SeatInfo[]; faceUp: boolean; votesIn: number; center?: React.ReactNode; theme?: 'vegas' | 'leidos'; tableName?: string | null }) {
+  const L = theme === 'leidos'
   // Put "me" at the bottom centre, everyone else evenly around the rail.
   const meIdx = Math.max(0, seats.findIndex((s) => s.isMe))
   const ordered = [...seats.slice(meIdx), ...seats.slice(0, meIdx)]
@@ -37,14 +38,19 @@ export function PokerTable({ seats, faceUp, votesIn, center }: { seats: SeatInfo
     <div className="relative mx-auto mb-10 w-full max-w-[min(960px,calc((100vh-440px)*1.8125))] select-none" style={{ aspectRatio: `${FW} / ${FH}` }}>
       {/* Table */}
       <div className="absolute rounded-full" style={{ left: `${(OX / FW) * 100}%`, top: `${(OY / FH) * 100}%`, width: `${(TW / FW) * 100}%`, height: `${(TH / FH) * 100}%` }}>
-        <div className="vegas-rail absolute inset-0 rounded-full" />
-        <div className="vegas-wood absolute rounded-full" style={{ top: '9%', bottom: '9%', left: '3.8%', right: '3.8%' }} />
-        <div className="vegas-felt absolute rounded-full grid place-items-center" style={{ top: '11.5%', bottom: '11.5%', left: '4.8%', right: '4.8%' }}>
-          <div className="absolute rounded-full border-2 border-[#d4af37]/50" style={{ inset: '16% 11%' }} />
+        <div className={`${L ? 'leidos-rail' : 'vegas-rail'} absolute inset-0 rounded-full`} />
+        <div className={`${L ? 'leidos-wood' : 'vegas-wood'} absolute rounded-full`} style={{ top: '9%', bottom: '9%', left: '3.8%', right: '3.8%' }} />
+        <div className={`${L ? 'leidos-felt' : 'vegas-felt'} absolute rounded-full grid place-items-center`} style={{ top: '11.5%', bottom: '11.5%', left: '4.8%', right: '4.8%' }} data-testid="table-felt" data-theme={theme}>
+          <div className={`absolute rounded-full border-2 ${L ? 'border-[#D62CD0]/45' : 'border-[#d4af37]/50'}`} style={{ inset: '16% 11%' }} />
           {center ? <div className="relative z-[5]">{center}</div> : <div className="text-center pointer-events-none">
-            <div className="font-display text-[clamp(18px,3vw,38px)] font-semibold tracking-[0.35em] text-[#d4af37]/35">POINT CLUB</div>
-            <div className="text-[clamp(8px,0.9vw,11px)] tracking-[0.5em] text-[#d4af37]/30 uppercase">Story pointing · Las Vegas</div>
-            <div className="mt-2 flex h-9 justify-center">{votesIn > 0 && !faceUp && <ChipPot count={votesIn} />}</div>
+            {L ? <>
+              <div className="text-[clamp(18px,3vw,38px)] font-light uppercase tracking-[0.4em] text-white/80" style={{ fontFamily: '"Avenir Next LT Pro", "Avenir Next", Avenir, ui-sans-serif, system-ui, sans-serif' }} data-testid="table-name">{tableName || 'Point Club'}</div>
+              <div className="text-[clamp(8px,0.9vw,11px)] uppercase tracking-[0.5em] text-white/50" style={{ fontFamily: '"Avenir Next LT Pro", "Avenir Next", Avenir, ui-sans-serif, system-ui, sans-serif' }}>Story pointing</div>
+            </> : <>
+              <div className="font-display text-[clamp(18px,3vw,38px)] font-semibold tracking-[0.35em] text-[#d4af37]/35" data-testid="table-name">{(tableName || 'Point Club').toUpperCase()}</div>
+              <div className="text-[clamp(8px,0.9vw,11px)] tracking-[0.5em] text-[#d4af37]/30 uppercase">Story pointing · Las Vegas</div>
+            </>}
+            <div className="mt-2 flex h-9 justify-center">{votesIn > 0 && !faceUp && <ChipPot count={votesIn} colors={L ? LEIDOS_CHIPS : undefined} />}</div>
           </div>}
         </div>
       </div>
@@ -73,7 +79,9 @@ export function PokerTable({ seats, faceUp, votesIn, center }: { seats: SeatInfo
           </button>
         )
         return (
-          <div key={s.member.id} data-seat={s.member.id} className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1 z-10" style={{ left: `${p.x}%`, top: `${p.y}%` }}>
+          <motion.div key={s.member.id} data-seat={s.member.id} className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1 z-10" style={{ left: `${p.x}%`, top: `${p.y}%` }}
+            animate={s.nudged ? { y: [0, -14, 0, -8, 0] } : { y: 0 }} transition={{ duration: 0.9 }}>
+            {s.nudged && <span className="pointer-events-none absolute -inset-3 animate-ping rounded-full ring-4 ring-primary/50" />}
             {s.spotlight && <motion.div initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} className="absolute -inset-8 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(255,214,102,.55), transparent 70%)' }} />}
             {s.menu ? <Popover><PopoverTrigger asChild>{seat}</PopoverTrigger><PopoverContent className="w-auto p-1.5 flex items-center gap-1">{s.menu}</PopoverContent></Popover> : seat}
             <div className="rounded-md border bg-background/95 px-2 py-0.5 text-center shadow-sm leading-tight">
@@ -83,7 +91,7 @@ export function PokerTable({ seats, faceUp, votesIn, center }: { seats: SeatInfo
               {!faceUp && s.vote === 'coffee' && <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-700" data-testid="seat-coffee">☕ Needs a break</div>}
             </div>
             {s.spotlight && <Badge variant="destructive" className="uppercase tracking-wider text-[10px]">Explain your vote</Badge>}
-          </div>
+          </motion.div>
         )
       })}
     </div>
@@ -91,14 +99,15 @@ export function PokerTable({ seats, faceUp, votesIn, center }: { seats: SeatInfo
 }
 
 const CHIP_COLORS = ['#c0392b', '#1f4fbf', '#111111', '#1e8449', '#7d3c98', '#d68910']
-function ChipPot({ count }: { count: number }) {
+const LEIDOS_CHIPS = ['#901588', '#D62CD0', '#734CDD', '#2981D7', '#0CB2A4']
+function ChipPot({ count, colors = CHIP_COLORS }: { count: number; colors?: string[] }) {
   return (
     <div className="flex items-end gap-1.5">
       {Array.from({ length: Math.min(count, 6) }).map((_, s) => (
         <div key={s} className="relative w-9" style={{ height: 36 }}>
           {Array.from({ length: Math.min(2 + ((count + s) % 4), 6) }).map((_, k) => (
             <motion.div key={k} initial={{ y: -40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: k * 0.04 }}
-              className="vegas-chip absolute left-0 w-9 h-[10px] rounded-[50%]" style={{ bottom: k * 5, ['--chip' as any]: CHIP_COLORS[(s + k) % CHIP_COLORS.length] }} />
+              className="vegas-chip absolute left-0 w-9 h-[10px] rounded-[50%]" style={{ bottom: k * 5, ['--chip' as any]: colors[(s + k) % colors.length] }} />
           ))}
         </div>
       ))}

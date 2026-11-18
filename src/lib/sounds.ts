@@ -40,6 +40,7 @@ export const sfx = {
     o.connect(g).connect(c.destination); o.start(); o.stop(c.currentTime + 0.5)
     noise(0, 0.4, 600, 0.1)
   },
+  knock() { if (!muted) [0, 0.16].forEach((t) => noise(t, 0.07, 900, 0.3)) },
   pop() { if (!muted) tone(300 + Math.random() * 400, 0, 0.06, 'square', 0.08) },
   splat() { if (!muted) noise(0, 0.25, 300, 0.25) },
 }

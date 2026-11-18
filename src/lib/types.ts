@@ -63,6 +63,10 @@ export interface Room {
   hostVotes?: boolean | null
   /** Dealer turned music off for the whole table. */
   musicOff?: boolean | null
+  /** Table look: classic Vegas green or Leidos purple. */
+  theme?: 'vegas' | 'leidos' | null
+  /** Name on the felt, e.g. "Team 2". */
+  tableName?: string | null
 }
 export interface Snapshot {
   room: Room | null
@@ -74,3 +78,4 @@ export interface Snapshot {
 export type LiveEvent =
   | { kind: 'throw'; from: string; to: string; item: string }
   | { kind: 'react'; from: string; emoji: string }
+  | { kind: 'nudge'; from: string; to: string[]; line: number }

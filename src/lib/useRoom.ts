@@ -273,6 +273,8 @@ export function useRoom(roomId: string) {
     },
     /** Dealer's switch: music on or off for everyone at the table. */
     async setMusicOff(off: boolean) { await patchRoom({ musicOff: off }) },
+    /** Dealer: the table's look (Vegas green or Leidos purple) and the name on the felt. */
+    async setTableStyle(p: { theme?: 'vegas' | 'leidos'; tableName?: string }) { await patchRoom(p) },
     async setNextCount(n: number) { await patchRoom({ nextCount: Math.max(1, Math.min(30, Math.round(n))) }) },
     async editStory(s: Story) { putLocal([s]); await db.upsertStories([s]) },
     async removeStory(id: string) {
