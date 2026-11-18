@@ -82,6 +82,8 @@ export function useRoom(roomId: string) {
   const activeSprint = sprints.find((s) => s.id === room?.activeSprintId) ?? null
   const lineup = stories.filter((s) => s.sprintId === activeSprint?.id).sort((a, b) => a.order - b.order)
   const current = stories.find((s) => s.id === room?.currentStoryId) ?? null
+  /** The session starts when the dealer picks the first story (or once anything is pointed). Until then, intro music plays. */
+  const begun = !!activeSprint?.begunAt || lineup.some((s) => s.points)
   const roundVotes = votes.filter((v) => v.storyId === current?.id && v.round === room?.round)
   const myVote = roundVotes.find((v) => v.memberId === meId)?.value ?? null
   const isHost = !!room && room.hostId === meId
@@ -184,7 +186,9 @@ export function useRoom(roomId: string) {
     },
     async selectStory(id: string) {
       const s = stories.find((x) => x.id === id)
-      // A pointed story opens locked (showing its points); the host can revote it on purpose.
+      // Picking the first story (any one, in any order) starts the session and ends the intro music.
+      if (s && activeSprint && !begun) await db.upsertSprint({ ...activeSprint, begunAt: Date.now() })
+      // A pointed story opens locked (showing its points); the dealer can revote it on purpose.
       if (s) await patchRoom({ currentStoryId: id, revealed: false, round: s.rounds })
     },
     /** Reopen voting on a story that already has points. */
@@ -210,7 +214,7 @@ export function useRoom(roomId: string) {
         url: r.url?.trim() || buildAdoUrl(pattern, r.number), points: null, outcome: null, rounds: 1, order: base + i, skipped: false, note: '',
       }))
       if (created.length) { putLocal(created); await db.upsertStories(created) }
-      if (to === 'session' && created.length && (!room.currentStoryId || !stories.some((s) => s.id === room.currentStoryId && s.sprintId === activeSprint.id)))
+      if (to === 'session' && created.length && begun && (!room.currentStoryId || !stories.some((s) => s.id === room.currentStoryId && s.sprintId === activeSprint.id)))
         await patchRoom({ currentStoryId: created[0].id, revealed: false, round: 1 })
       return { added: created, skipped: rows.length - created.length }
     },
@@ -238,7 +242,8 @@ export function useRoom(roomId: string) {
       const base = lineup.length ? Math.max(...lineup.map((s) => s.order)) + 1 : 0
       const moved = upNext.map((s, i) => ({ ...s, sprintId: activeSprint.id, order: base + i, skipped: false }))
       putLocal(moved); await db.upsertStories(moved)
-      if (!current || current.sprintId !== activeSprint.id) await patchRoom({ currentStoryId: moved[0].id, revealed: false, round: moved[0].rounds })
+      // Before the session starts the dealer picks which story to point first; after that, the next one comes up.
+      if (begun && (!current || current.sprintId !== activeSprint.id)) await patchRoom({ currentStoryId: moved[0].id, revealed: false, round: moved[0].rounds })
     },
     /** Put a story (from the table or the Next session list) back at the top of the backlog. */
     async moveToBacklog(id: string) {
@@ -262,6 +267,8 @@ export function useRoom(roomId: string) {
       await patchRoom({ hostVotes: on })
       if (!on && current && room) await db.removeVote(`${current.id}:${room.round}:${meId}`)
     },
+    /** Dealer's switch: music on or off for everyone at the table. */
+    async setMusicOff(off: boolean) { await patchRoom({ musicOff: off }) },
     async setNextCount(n: number) { await patchRoom({ nextCount: Math.max(1, Math.min(30, Math.round(n))) }) },
     async editStory(s: Story) { putLocal([s]); await db.upsertStories([s]) },
     async removeStory(id: string) {
@@ -307,6 +314,6 @@ export function useRoom(roomId: string) {
     },
   }
 
-  return { ready, error, mode: db.mode, meId, me, room, members, sprints, stories, votes, activeSprint, lineup, backlog, upNext, current, roundVotes, myVote, isHost, isDealer, result, actions }
+  return { ready, error, mode: db.mode, meId, me, room, members, sprints, stories, votes, activeSprint, lineup, backlog, upNext, current, roundVotes, myVote, isHost, isDealer, begun, result, actions }
 }
 export type RoomApi = ReturnType<typeof useRoom>

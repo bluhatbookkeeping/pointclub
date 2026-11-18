@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Armchair, Palmtree, Pencil, LogOut, ArrowRight } from 'lucide-react'
+import { ArrowLeft, Armchair, Palmtree, Pencil, LogOut, ArrowRight } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
 import { Logo } from '@/components/Logo'
 import { Button } from '@/components/ui/button'
@@ -27,14 +27,16 @@ export function Lobby({ api, onEnter }: { api: RoomApi; onEnter: () => void }) {
     const c = castById(me.character)
     return (
       <div className="min-h-screen grid place-items-center p-6">
-        <Card className="w-[440px]">
-          <CardHeader className="items-center text-center">
+        <Card className="relative w-[440px]">
+          <button className="absolute left-4 top-4 flex items-center gap-1 rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground" data-testid="back-to-table"
+            onClick={async () => { await actions.setStatus('here'); onEnter() }}><ArrowLeft className="h-4 w-4" /> Back to the table</button>
+          <CardHeader className="items-center pt-12 text-center">
             <Avatar character={me.character} name={me.name} size={112} mood="cheer" />
-            <CardTitle className="text-2xl pt-3">Welcome back, {me.name}</CardTitle>
-            <CardDescription>{me.status === "away" ? "Marked away" : "Good to see you again."}</CardDescription>
+            <CardTitle className="text-2xl pt-3">{me.name}</CardTitle>
+            <CardDescription>{me.status === "away" ? "You're marked away." : "Your seat at the table."}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2">
-            <Button size="lg" onClick={async () => { await actions.setStatus('here'); onEnter() }}><Armchair /> Take my seat</Button>
+            <Button size="lg" onClick={async () => { await actions.setStatus('here'); onEnter() }}><Armchair /> {me.status === 'away' ? "I'm here, take my seat" : 'Back to the table'}</Button>
             <div className="grid grid-cols-3 gap-2">
               <Button variant="outline" onClick={async () => { await actions.setStatus('away'); onEnter() }}><Palmtree /> Away</Button>
               <Button variant="outline" onClick={() => setEditing(true)}><Pencil /> Change</Button>

@@ -33,11 +33,15 @@ function fx(name: string, volume = 0.6) {
 }
 
 const POINT_LINES = new Set(['1', '2', '3', '5', '8', '13', '21'])
+/** The dealer's table-wide music switch. Sound effects and voice lines are unaffected. */
+let musicOff = false
+export function setMusicOff(off: boolean) { musicOff = off; if (off) { votingMusic(false); walkInMusic(false) } }
+
 /** Quiet looping music while the team votes. One shared player; fades in and out. Respects mute. */
 let thinking: HTMLAudioElement | null = null
 let fadeT: ReturnType<typeof setInterval> | null = null
 export function votingMusic(on: boolean, volume = 0.18) {
-  if (on && isMuted()) on = false
+  if (on && (isMuted() || musicOff)) on = false
   if (on && !thinking) { thinking = new Audio('/sfx/sfx/thinking.mp3'); thinking.loop = true; thinking.volume = 0; (window as any).__votingMusic = thinking }
   if (!thinking) return
   const a = thinking
@@ -53,7 +57,7 @@ export function votingMusic(on: boolean, volume = 0.18) {
 
 /** Upbeat credits music. Returns a stop function that fades it out. Respects mute. */
 export function playMusic(name = 'credits', volume = 0.45, fadeAfterMs?: number): () => void {
-  if (isMuted()) return () => {}
+  if (isMuted() || musicOff) return () => {}
   const a = new Audio(`/sfx/sfx/${name}.mp3`)
   ;(window as any).__creditsMusic = a
   a.volume = volume
@@ -74,7 +78,7 @@ let walkFade: ReturnType<typeof setInterval> | null = null
 let walkCap: ReturnType<typeof setTimeout> | null = null
 let walkDone = false // after the 60-second cap, stay quiet until the next session
 export function walkInMusic(on: boolean, volume = 0.3) {
-  if (on && (isMuted() || walkDone)) on = false
+  if (on && (isMuted() || walkDone || musicOff)) on = false
   if (on && !walkIn) { walkIn = new Audio('/sfx/sfx/credits.mp3'); walkIn.loop = true; walkIn.volume = 0; (window as any).__walkInMusic = walkIn }
   if (!walkIn) return
   const a = walkIn

@@ -61,6 +61,8 @@ export interface Room {
   nextCount?: number | null
   /** The host deals (doesn't vote) unless this is true. */
   hostVotes?: boolean | null
+  /** Dealer turned music off for the whole table. */
+  musicOff?: boolean | null
 }
 export interface Snapshot {
   room: Room | null

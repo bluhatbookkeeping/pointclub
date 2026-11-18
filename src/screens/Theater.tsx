@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Camera, Clapperboard, Crown, ExternalLink, FolderOpen, Link2, RotateCcw, Volume2, VolumeX, UserRound, Eye, Check, Circle, MessageSquare, MessageSquareOff, ArrowRight, SkipForward, ListChecks, Undo2, Plus, Minus, Trash2, Mail, ArrowUpToLine } from 'lucide-react'
+import { Camera, Clapperboard, Crown, ExternalLink, FolderOpen, Link2, RotateCcw, Volume2, VolumeX, UserRound, Eye, Check, Circle, MessageSquare, MessageSquareOff, ArrowRight, SkipForward, ListChecks, Undo2, Plus, Minus, Trash2, Mail, ArrowUpToLine, Music } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
 import { PokerTable } from '@/components/PokerTable'
 import { TicketCard, label } from '@/components/TicketCard'
@@ -19,7 +19,7 @@ import { SortableList } from '@/components/SortableList'
 import { NewSprint } from './NewSprint'
 import { Credits } from './Credits'
 import { CAST, castById } from '@/lib/cast'
-import { resetWalkIn, setVoicesEnabled, voice, voicesEnabled, votingMusic, walkInMusic } from '@/lib/voice'
+import { resetWalkIn, setMusicOff, setVoicesEnabled, voice, voicesEnabled, votingMusic, walkInMusic } from '@/lib/voice'
 import { blockbusterBurst, clearFx, sparkleBurst } from '@/lib/fx'
 import { isMuted, setMuted, sfx } from '@/lib/sounds'
 import { cn, sessionDate, sessionIso, sessionName } from '@/lib/utils'
@@ -45,12 +45,15 @@ function QuickAdd({ onAdd }: { onAdd: (number: string, title: string) => Promise
   )
 }
 
+/** Music note with a slash, for "music off". */
+const MusicOff = () => <span className="relative inline-grid"><Music /><span className="absolute left-1/2 top-0 h-full w-0.5 -translate-x-1/2 rotate-45 bg-current" /></span>
+
 function IconBtn({ tip, children, ...p }: React.ComponentProps<typeof Button> & { tip: string }) {
   return <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label={tip} {...p}>{children}</Button></TooltipTrigger><TooltipContent>{tip}</TooltipContent></Tooltip>
 }
 
 export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi; openVault: () => void; openPlanner: () => void; onLobby: () => void }) {
-  const { room, members, me, current, lineup, backlog, upNext, isDealer, roundVotes, myVote, isHost, result, actions, activeSprint, sprints, mode } = api
+  const { room, members, me, current, lineup, backlog, upNext, isDealer, begun, roundVotes, myVote, isHost, result, actions, activeSprint, sprints, mode } = api
   // A seat shows only for people who have the table open right now (their screen checks in every 30 seconds).
   // Teammates who joined in an earlier week but haven't opened the link today are listed as "Not here yet".
   const [now, setNow] = useState(() => Date.now())
@@ -62,12 +65,14 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
   const voters = here.filter((m) => room?.hostVotes || m.id !== room?.hostId)
   const allIn = voters.length > 0 && voters.every((m) => roundVotes.some((v) => v.memberId === m.id))
   // Lounge music while people are voting; it fades out once every card is in or the hand is shown.
-  // Before the dealer clicks "Let's start": walk-in music while people arrive (a session with points has begun).
-  const begun = !!activeSprint?.begunAt || lineup.some((s) => s.points)
+  // Intro music while people arrive, until the dealer picks the first story. The dealer can switch music off for everyone.
+  const musicOff = !!room?.musicOff
+  useEffect(() => { setMusicOff(musicOff) }, [musicOff])
   useEffect(() => { resetWalkIn() }, [activeSprint?.id])
-  useEffect(() => { walkInMusic(!begun && me?.status === 'here') }, [begun, me?.status, activeSprint?.id])
+  useEffect(() => { walkInMusic(!begun && me?.status === 'here' && !musicOff) }, [begun, me?.status, activeSprint?.id, musicOff])
   useEffect(() => () => walkInMusic(false), [])
-  const votingNow = begun && !!current && !current.points && !current.skipped && !room?.revealed && !allIn && me?.status === 'here'
+  // Voting music starts with the first card played and stops once everyone has voted (or the hand is shown).
+  const votingNow = begun && !musicOff && !!current && !current.points && !current.skipped && !room?.revealed && !allIn && roundVotes.length > 0 && me?.status === 'here'
   useEffect(() => { votingMusic(votingNow) }, [votingNow])
   useEffect(() => () => votingMusic(false), [])
   const away = members.filter((m) => m.status === 'away')
@@ -229,6 +234,8 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
             <Button variant="ghost" size="sm" onClick={openVault} title="Past stories (every session's stories and votes)"><FolderOpen /><span className="hidden lg:inline">Past stories</span></Button>
             <IconBtn tip={copied ? 'Copied!' : 'Copy room link'} onClick={copyLink}>{copied ? <Check /> : <Link2 />}</IconBtn>
             <IconBtn tip={voices ? 'Turn voice lines off' : 'Turn voice lines on'} onClick={() => { setVoicesEnabled(!voices); setVoices(!voices) }}>{voices ? <MessageSquare /> : <MessageSquareOff />}</IconBtn>
+            {isHost ? <IconBtn tip={musicOff ? 'Music is off for everyone. Click to turn it on' : 'Music is on for everyone. Click to turn it off'} data-testid="music-switch" onClick={() => actions.setMusicOff(!musicOff)}>{musicOff ? <MusicOff /> : <Music />}</IconBtn>
+              : musicOff && <span className="text-xs text-muted-foreground" data-testid="music-off-note">Music off</span>}
             <IconBtn tip={muted ? 'Unmute' : 'Mute'} onClick={() => { setMuted(!muted); setMute(!muted); votingMusic(muted ? votingNow : false); walkInMusic(muted ? !begun : false) }}>{muted ? <VolumeX /> : <Volume2 />}</IconBtn>
             <IconBtn tip="My seat (lobby)" onClick={onLobby}>{me ? <Avatar character={me.character} name={me.name} size={26} /> : <UserRound />}</IconBtn>
           </div>
@@ -251,7 +258,7 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
                 <div role="button" tabIndex={isHost ? 0 : -1} onClick={() => isHost && actions.selectStory(s.id)} data-testid="session-row"
                   onKeyDown={(e) => { if (isHost && e.key === 'Enter') actions.selectStory(s.id) }}
                   title={s.points ? `Done: ${s.points} points. Click to view or revote.` : s.skipped ? `Skipped, back in the backlog${s.note ? `: ${s.note}` : ''}` : s.note || undefined}
-                  className={cn('group flex items-start gap-1.5 rounded-md px-1.5 py-1.5 text-left text-sm transition-colors', isHost ? 'cursor-pointer' : 'cursor-default',
+                  className={cn('group flex items-start gap-1.5 rounded-md px-1.5 py-1.5 text-left text-sm transition-colors', isHost ? 'cursor-pointer' : 'cursor-default', isHost && !begun && !s.points && 'ring-1 ring-primary/40 animate-pulse',
                     s.id === current?.id ? 'bg-secondary font-medium' : 'hover:bg-secondary/60 text-muted-foreground',
                     (s.points || s.skipped) && s.id !== current?.id && 'opacity-55')}>
                   {isHost && handle}
@@ -295,10 +302,11 @@ export function Theater({ api, openVault, openPlanner, onLobby }: { api: RoomApi
             <div className="flex items-center gap-4 rounded-xl border-2 border-primary/30 bg-primary/[0.06] px-5 py-4" data-testid="start-banner">
               <div className="flex-1">
                 <div className="text-lg font-semibold">{activeSprint ? sessionName(activeSprint.name) : 'Refinement session'} · {sessionDate(activeSprint)}</div>
-                <div className="text-sm text-muted-foreground">{isHost ? 'Everyone here? Start when the team is seated.' : 'Grab a seat. The dealer will start in a moment.'}</div>
+                <div className="text-sm text-muted-foreground">{isHost
+                  ? (lineup.length ? <>Everyone here? <b className="text-foreground">Click any story on the left</b> to start pointing it. The music stops when you do.</> : 'Everyone here? Add stories with + Add a story or Plan stories, then click one to start.')
+                  : 'Grab a seat. The dealer will pick the first story.'}</div>
               </div>
-              {isHost ? <Button size="lg" onClick={() => { walkInMusic(false); actions.beginSession() }} data-testid="lets-start">Let's start <ArrowRight /></Button>
-                : <span className="text-sm font-medium text-muted-foreground">Waiting for the dealer to start</span>}
+              {!isHost && <span className="text-sm font-medium text-muted-foreground">Waiting for the dealer</span>}
             </div>
           )}
           <Card>
